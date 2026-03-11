@@ -1,0 +1,27 @@
+#!/bin/sh
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# ESLint
+echo "→ Running ESLint..."
+bun run lint
+
+# Prettier
+echo "→ Running Prettier..."
+bun run format
+
+# TypeScript
+echo "→ Running TypeScript type check..."
+bun run typecheck
+
+# Tests
+echo "→ Running unit tests..."
+bun test:unit
+
+# Audit
+echo "→ Running dependency audit..."
+bun audit
+
+echo "✓ All pre-commit checks passed!"
