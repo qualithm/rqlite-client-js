@@ -7,6 +7,16 @@
 - Lowercase error messages with no trailing punctuation
 - Run linting and type checking before committing
 
+## Scripts
+
+- Use `:` as separator for script variants (e.g. `test:unit`, `test:integration`, `analyze:bundle`)
+- Do not use `-` as separator (e.g. avoid `analyze-bundle`)
+- Common patterns:
+  - `test`, `test:unit`, `test:integration`, `test:coverage`
+  - `build`, `build:watch`
+  - `format`, `format:fix`
+  - `lint`, `lint:fix`
+
 ## When Code Changes
 
 Any code change should include review of:
