@@ -1,140 +1,127 @@
 ---
 applyTo: "**/CONTEXT.md"
-description: "Rules for maintaining the project's working memory"
+description: "CONTEXT.md maintenance rules for AI agents"
 ---
 
-# CONTEXT.md Maintenance Rules
+# CONTEXT.md Rules
 
-These rules are non-negotiable.
+## Mandatory Behaviours
 
----
+BEFORE editing any file in this repository:
 
-## Core Invariants
+1. Read CONTEXT.md
+2. Check Work In Flight for conflicts
+3. Add claim to Work In Flight with timestamp
+4. Re-read CONTEXT.md immediately before writing (detect concurrent edits)
 
-1. **CONTEXT.md Is Authoritative** — When CONTEXT.md conflicts with any other document, CONTEXT.md
-   is correct. Update other documents to match.
+AFTER completing work:
 
-2. **Learnings Are Append-Only** — Never edit, delete, or reorder. Only append new rows.
+1. Update Current Reality if new capability exists
+2. Remove your Work In Flight entry
+3. Verify no contradictions introduced
 
-3. **Current Reality Contains Only Present Facts** — Describe what exists now. Forbidden: "will be",
-   "planned for", "should support", "eventually".
+## Authority
 
-4. **No Future Tense in Reality Sections** — System Intent, Current Reality, and Locked Decisions
-   use present/past tense only. Future work goes in Work Queue or Open Decisions.
+CONTEXT.md > Code > README > Comments
 
-5. **Contradictions Must Be Resolved** — Stop, determine reality, fix the incorrect section, add a
-   Learning entry.
+When conflict detected: CONTEXT.md is correct. Update the other source.
 
----
+## Section Formats
 
-## Section Rules
+| Section         | Format                                    | Tense   |
+| --------------- | ----------------------------------------- | ------- |
+| System Intent   | Paragraphs + bullet list                  | Present |
+| Current Reality | Tables only                               | Present |
+| Locked          | `N. **Topic** — Rationale`                | Present |
+| Open Decisions  | `ID \| Question \| Context`               | —       |
+| Risks           | `ID \| Risk \| Impact \| Mitigation`      | —       |
+| Work In Flight  | `ID \| Agent \| Started \| Task \| Files` | —       |
+| Work Queue      | `### Title` + `- [ ] Task`                | —       |
 
-### System Intent
+## System Intent Formula
 
-- 1-2 paragraph summary + "Key capabilities" bullet list
-- Present tense, rarely changes
-- Optional "Scope" boundary statement
+**Sentence 1**: `[Type] [technology] for [runtime/platform].` **Sentence 2**:
+`Implements/Provides [specific protocols/capabilities] for [use cases].`
 
-### Current Reality
+Examples:
 
-- Must match actual codebase; update immediately when code changes
-- Tables only (no bullet lists for inventories)
-- No commentary paragraphs (warnings go in Risks or Learnings)
-- Status values: `Complete` | `Partial` | `Operational` | `Stub` | `Not started`
+- "Rust framework for building data infrastructure on Apache Arrow Flight. Implements the Arrow
+  Flight and Flight SQL protocols with pluggable storage, authentication, and query execution."
+- "Native Apache Kafka client for JavaScript and TypeScript runtimes. Implements the Kafka binary
+  protocol directly for producing, consuming, and administering Kafka clusters."
 
-**Subsection order** (include only applicable):
+## Current Reality Rules
 
-| Subsection                | Format                     |
-| ------------------------- | -------------------------- |
-| Architecture              | Component \| Technology    |
-| File Structure            | Directory \| Purpose       |
-| Components/Modules/Crates | Name \| Purpose            |
-| Features                  | Feature \| Status \| Notes |
-| API Endpoints             | Category \| Endpoints      |
-| Security Configuration    | Feature \| Status \| Notes |
+- Listed = complete (no status columns)
+- Tables only, no bullet lists
+- No commentary, progress remarks, or qualifiers
+- Update immediately when code changes
 
-### Locked Decisions
+Forbidden in Current Reality:
 
-- Format: `N. **Topic** — Rationale`
-- Numbered sequentially, no intro paragraph
-- Removal requires explicit approval
+- "in progress", "partially", "mostly", "almost"
+- "needs", "should", "TODO", "WIP"
+- Percentages or completion indicators
+- Explanatory notes about state
+- Future tense ("will", "planned", "eventually")
 
-### Open Decisions & Risks
+Valid: `| Authentication | OAuth 2.0 PKCE |` Invalid:
+`| Authentication | OAuth 2.0 PKCE (90% done) |` Invalid:
+`| Authentication | OAuth 2.0 PKCE — needs token refresh |`
 
-- Use unique IDs: OD-1, OD-2..., R-1, R-2...
-- Move resolved decisions to Locked Decisions; remove mitigated risks
-- Empty section placeholder: `| — | None | — |`
+## Work In Flight Protocol
 
-| Table          | Columns                            |
-| -------------- | ---------------------------------- |
-| Open Decisions | ID \| Question \| Context          |
-| Risks          | ID \| Risk \| Impact \| Mitigation |
+```
+IF Work In Flight contains entry touching same files:
+  THEN wait or coordinate — do not proceed
 
-### Work In Flight
+CLAIM format:
+  | WIF-N | AgentName | YYYY-MM-DD HH:MM | Task description | file1.rs, file2.rs |
 
-- Claim before starting with timestamp
-- Remove within 24 hours of completion
-- Format: `ID | Agent | Started | Task | Files`
+REMOVE immediately upon completion
+```
 
-### Work Queue
+## Forbidden Content
 
-- Ordered by priority, semantic names (e.g., "Core Protocol", not "M1")
-- Format: `### Semantic Title` with `- [ ]` task checklists
-- Optional `Acceptance:` line with measurable criteria
-- Move completed items to Current Reality
+- External Dependencies section (use package.json/Cargo.toml)
+- Environment Variables section (use env-example)
+- References to non-existent files
+- Status columns
+- Likelihood columns in Risks
+- Commentary paragraphs
 
-### Learnings
+## IDs
 
-- **Append-only** — never edit or delete
-- Intro line: `> Append-only. Never edit or delete existing entries.`
-- Format: `Date | Learning`
-
----
+- Open Decisions: OD-1, OD-2, ...
+- Risks: R-1, R-2, ...
+- Work In Flight: WIF-1, WIF-2, ...
 
 ## Required Sections (in order)
 
-1. Header block (title, authority statement)
+1. Header (title, authority statement)
 2. System Intent
 3. Current Reality
 4. Locked Decisions
 5. Open Decisions & Risks
 6. Work In Flight
 7. Work Queue
-8. Learnings
-
----
-
-## Forbidden Content
-
-- External Dependencies sections (use package.json/Cargo.toml)
-- Environment Variables sections (use env-example)
-- References to non-existent files
-- Future tense in Current Reality
-- Emoji in status values
-- Likelihood columns in Risks
-- Commentary paragraphs in Current Reality
-
----
 
 ## Template
 
 ```markdown
 # CONTEXT.md
 
-> **This is the single source of truth for this repository.** When CONTEXT.md conflicts with any
-> other document, CONTEXT.md is correct.
+> **Single source of truth.** CONTEXT.md > Code > README > Comments.
 
 ---
 
 ## System Intent
 
-[1-2 paragraph summary]
+[1-2 paragraphs]
 
 **Key capabilities:**
 
 - [Capability]
-
-**Scope:** [Optional boundary]
 
 ---
 
@@ -147,8 +134,8 @@ These rules are non-negotiable.
 
 ### Features
 
-| Feature | Status | Notes |
-| ------- | ------ | ----- |
+| Feature | Notes |
+| ------- | ----- |
 
 ---
 
@@ -160,12 +147,8 @@ These rules are non-negotiable.
 
 ## Open Decisions & Risks
 
-### Open Decisions
-
 | ID  | Question | Context |
 | --- | -------- | ------- |
-
-### Risks
 
 | ID  | Risk | Impact | Mitigation |
 | --- | ---- | ------ | ---------- |
@@ -174,8 +157,6 @@ These rules are non-negotiable.
 
 ## Work In Flight
 
-> Claim before starting. Remove within 24h of completion.
-
 | ID  | Agent | Started | Task | Files |
 | --- | ----- | ------- | ---- | ----- |
 
@@ -183,34 +164,28 @@ These rules are non-negotiable.
 
 ## Work Queue
 
-### [Semantic Title]
+### [Title]
 
 - [ ] [Task]
 
 Acceptance: [Criteria]
-
----
-
-## Learnings
-
-> Append-only. Never edit or delete existing entries.
-
-| Date | Learning |
-| ---- | -------- |
 ```
-
----
 
 ## Compaction
 
-**Triggers**: >400 lines, >30 learnings, >3 completed work items, risks unreviewed >90 days
+**Trigger**: CONTEXT.md exceeds 300 lines
 
-**Actions**:
+**Rules**:
 
-- Archive to `CONTEXT-ARCHIVE.md`: learnings >6 months old (keep 10 recent), deferred decisions >6
-  months
-- Delete: completed work items (after verified in Current Reality), mitigated risks, resolved
-  decisions (after moving to Locked), stale Work In Flight
-- Consolidate: granular tables → summary rows, related learnings → single entry
+- Delete completed Work Queue sections (after verified in Current Reality)
+- Delete mitigated Risks
+- Delete resolved Open Decisions (after moving to Locked)
+- Delete abandoned Work In Flight entries
+- Merge related Current Reality rows into single capability
+- Combine similar Work Queue items
 
-**Log**: `YYYY-MM-DD | Compacted CONTEXT.md; archived N learnings, removed M work items`
+**Prevention**:
+
+- One row per capability, not per file
+- No granular feature breakdowns
+- Notes column: brief or empty (detail belongs in code)

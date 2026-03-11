@@ -5,6 +5,9 @@ description: "Guidelines for writing commit messages"
 
 # Commit Guidelines
 
+**Default: Generate a single-line commit message (header only). Include body/footer only when
+explicitly requested.**
+
 ## Format
 
 ```
