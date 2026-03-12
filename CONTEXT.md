@@ -175,10 +175,10 @@ typed.
 
 ### Unified Request API
 
-- [ ] `request(statements)` — unified read/write in single HTTP call
-- [ ] Automatic statement type detection (SELECT vs others)
-- [ ] Mixed read/write batch support
-- [ ] Transaction wrapping for request batches
+- [x] `request(statements)` — unified read/write in single HTTP call
+- [x] Automatic statement type detection (SELECT vs others)
+- [x] Mixed read/write batch support
+- [x] Transaction wrapping for request batches
 
 Acceptance: Single API can handle mixed workloads; correctly routes to appropriate endpoint.
 

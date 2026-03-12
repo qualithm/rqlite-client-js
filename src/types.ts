@@ -98,6 +98,31 @@ export type QueryOptions = {
 }
 
 // =============================================================================
+// Request Options
+// =============================================================================
+
+/** Options for unified request (mixed read/write) operations. */
+export type RequestOptions = {
+  /** Wrap all statements in a transaction. */
+  transaction?: boolean
+  /** Read consistency level (overrides client default). */
+  level?: ConsistencyLevel
+  /** Freshness options for stale reads (only applies with `none` consistency). */
+  freshness?: FreshnessOptions
+  /** Request timeout in milliseconds (overrides client default). */
+  timeout?: number
+}
+
+// =============================================================================
+// Request Results
+// =============================================================================
+
+/** A single result from the unified request endpoint — either a query or execute result. */
+export type RequestResult =
+  | ({ type: "query" } & QueryResult)
+  | ({ type: "execute" } & ExecuteResult)
+
+// =============================================================================
 // Query Results
 // =============================================================================
 

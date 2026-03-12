@@ -26,6 +26,8 @@ export type {
   FreshnessOptions,
   QueryOptions,
   QueryResult,
+  RequestOptions,
+  RequestResult,
   RqliteAuth,
   RqliteConfig,
   SqlStatement,

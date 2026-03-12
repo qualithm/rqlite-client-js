@@ -12,6 +12,8 @@ import type {
   ExecuteResult,
   QueryOptions,
   QueryResult,
+  RequestOptions as RequestOpts,
+  RequestResult,
   RqliteAuth,
   RqliteConfig,
   SqlValue
@@ -169,6 +171,40 @@ export class RqliteClient {
       return result
     }
     return parseQueryResponse(result.value)
+  }
+
+  /**
+   * Execute mixed read/write SQL statements in a single HTTP call.
+   *
+   * Uses the rqlite `/db/request` endpoint which accepts both SELECT and
+   * write statements. Each result is tagged with `type: "query"` or
+   * `type: "execute"` based on the statement.
+   *
+   * @example
+   * ```ts
+   * const results = await client.requestBatch([
+   *   ["INSERT INTO foo VALUES(?, ?)", 1, "bar"],
+   *   ["SELECT * FROM foo"],
+   * ], { transaction: true })
+   *
+   * if (results.ok) {
+   *   for (const r of results.value) {
+   *     if (r.type === "execute") console.log(r.rowsAffected)
+   *     if (r.type === "query") console.log(r.columns, r.values)
+   *   }
+   * }
+   * ```
+   */
+  async requestBatch(
+    statements: unknown[],
+    options?: RequestOpts
+  ): Promise<Result<RequestResult[], RqliteError>> {
+    const params = buildRequestParams(options, this.config)
+    const result = await this.post<RqliteRequestResponse>("/db/request", statements, params)
+    if (!result.ok) {
+      return result
+    }
+    return parseRequestResponse(result.value, statements)
   }
 
   /** Build the full URL for a request. */
@@ -407,6 +443,110 @@ function parseQueryResponse(raw: RqliteQueryResponse): Result<QueryResult[], Rql
       values: item.values ?? [],
       time: item.time ?? 0
     })
+  }
+  return ok(results)
+}
+
+// =============================================================================
+// Request Response Parsing
+// =============================================================================
+
+/** Raw rqlite request endpoint response (mixed execute/query). */
+type RqliteRequestResponse = {
+  results?: RqliteRequestResultItem[]
+}
+
+/** A single result item from rqlite's request response — may be execute or query shaped. */
+type RqliteRequestResultItem = {
+  last_insert_id?: number
+  rows_affected?: number
+  columns?: string[]
+  types?: string[]
+  values?: SqlValue[][]
+  time?: number
+  error?: string
+}
+
+/** Build query parameters for unified request operations. */
+function buildRequestParams(
+  options: RequestOpts | undefined,
+  config: RqliteConfig
+): Record<string, string> | undefined {
+  const level = options?.level ?? config.consistencyLevel
+  const freshness = options?.freshness ?? config.freshness
+
+  const params: Record<string, string> = {}
+
+  if (options?.transaction === true) {
+    params.transaction = ""
+  }
+  if (level !== undefined) {
+    params.level = level
+  }
+  if (freshness !== undefined) {
+    params.freshness = freshness.freshness
+    if (freshness.freshnessStrict === true) {
+      params.freshness_strict = ""
+    }
+  }
+
+  return Object.keys(params).length > 0 ? params : undefined
+}
+
+/**
+ * Extract the SQL string from a statement in array format.
+ * Statements can be `["SQL"]` or `["SQL", param1, param2, ...]`.
+ */
+function extractSql(statement: unknown): string | undefined {
+  if (Array.isArray(statement) && typeof statement[0] === "string") {
+    return statement[0]
+  }
+  if (typeof statement === "string") {
+    return statement
+  }
+  return undefined
+}
+
+/** Check whether a SQL string is a read (SELECT) statement. */
+function isSelectStatement(sql: string): boolean {
+  return sql.trimStart().toUpperCase().startsWith("SELECT")
+}
+
+/** Parse the raw rqlite request response into typed results. */
+function parseRequestResponse(
+  raw: RqliteRequestResponse,
+  statements: unknown[]
+): Result<RequestResult[], RqliteError> {
+  if (raw.results === undefined) {
+    return err(new ConnectionError("missing results in request response"))
+  }
+
+  const results: RequestResult[] = []
+  for (let i = 0; i < raw.results.length; i++) {
+    const item = raw.results[i]
+    if (item.error !== undefined) {
+      return err(new QueryError(item.error))
+    }
+
+    const sql = extractSql(statements[i])
+    const isQuery = sql !== undefined && isSelectStatement(sql)
+
+    if (isQuery) {
+      results.push({
+        type: "query",
+        columns: item.columns ?? [],
+        types: item.types ?? [],
+        values: item.values ?? [],
+        time: item.time ?? 0
+      })
+    } else {
+      results.push({
+        type: "execute",
+        lastInsertId: item.last_insert_id ?? 0,
+        rowsAffected: item.rows_affected ?? 0,
+        time: item.time ?? 0
+      })
+    }
   }
   return ok(results)
 }
