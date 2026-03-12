@@ -103,8 +103,8 @@ console.log("-".repeat(60))
 
 const scenarios = [
   {
-    name: "Core only (greet)",
-    includes: ["greet.js", "index.js"]
+    name: "Client only",
+    includes: ["client.js", "result.js", "errors.js", "types.js", "index.js"]
   },
   {
     name: "Full library (no testing)",

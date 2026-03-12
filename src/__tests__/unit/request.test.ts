@@ -409,4 +409,69 @@ describe("RqliteClient requestBatch", () => {
       expect(url).toContain("freshness_strict=")
     })
   })
+
+  describe("HTTP failure", () => {
+    it("returns error when HTTP request fails", async () => {
+      mockFetch({ ok: false, status: 500, text: "internal server error" })
+      const client = createClient({ maxRetries: 0 })
+
+      const result = await client.requestBatch([["INSERT INTO foo VALUES(1)"], ["SELECT 1"]])
+
+      expect(isErr(result)).toBe(true)
+      if (!result.ok) {
+        expect(ConnectionError.isError(result.error)).toBe(true)
+        expect(result.error.message).toContain("500")
+      }
+    })
+  })
+
+  describe("string statements", () => {
+    it("handles plain string statements as execute", async () => {
+      mockFetch({
+        ok: true,
+        status: 200,
+        data: { results: [{ rows_affected: 1, time: 0.001 }] }
+      })
+      const client = createClient()
+
+      const result = await client.requestBatch(["INSERT INTO foo VALUES(1)"])
+
+      expect(isOk(result)).toBe(true)
+      if (result.ok) {
+        expect(result.value[0].type).toBe("execute")
+      }
+    })
+
+    it("detects plain string SELECT as query", async () => {
+      mockFetch({
+        ok: true,
+        status: 200,
+        data: { results: [{ columns: ["1"], types: [""], values: [[1]], time: 0.001 }] }
+      })
+      const client = createClient()
+
+      const result = await client.requestBatch(["SELECT 1"])
+
+      expect(isOk(result)).toBe(true)
+      if (result.ok) {
+        expect(result.value[0].type).toBe("query")
+      }
+    })
+
+    it("treats non-string non-array statements as execute", async () => {
+      mockFetch({
+        ok: true,
+        status: 200,
+        data: { results: [{ rows_affected: 0, time: 0.001 }] }
+      })
+      const client = createClient()
+
+      const result = await client.requestBatch([42])
+
+      expect(isOk(result)).toBe(true)
+      if (result.ok) {
+        expect(result.value[0].type).toBe("execute")
+      }
+    })
+  })
 })

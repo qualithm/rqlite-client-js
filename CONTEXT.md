@@ -227,11 +227,11 @@ Acceptance: Complete API docs; runnable examples for all major features.
 
 ### Template Cleanup
 
-- [ ] Remove `src/greet.ts` and `src/__tests__/unit/greet.test.ts`
-- [ ] Update `bench/index.ts` to benchmark rqlite operations
-- [ ] Update `package.json` name, description, keywords, repository
-- [ ] Update `typedoc.json` with correct repository URL
-- [ ] Update `examples/` with rqlite-specific examples
+- [x] Remove `src/greet.ts` and `src/__tests__/unit/greet.test.ts`
+- [x] Update `bench/index.ts` to benchmark rqlite operations
+- [x] Update `package.json` name, description, keywords, repository
+- [x] Update `typedoc.json` with correct repository URL
+- [x] Update `examples/` with rqlite-specific examples
 
 Acceptance: No template references remain; package metadata is correct.
 

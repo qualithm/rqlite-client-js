@@ -237,6 +237,47 @@ describe("Cluster Status", () => {
         expect(AuthenticationError.isError(result.error)).toBe(true)
       }
     })
+    it("sends auth header on readyz endpoint when credentials are provided", async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: vi.fn().mockResolvedValue("[Leader]")
+      })
+      vi.stubGlobal("fetch", fetchMock)
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        auth: { username: "admin", password: "secret" }
+      })
+
+      await client.ready()
+
+      const headers = fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>
+      expect(headers.Authorization).toBe(`Basic ${btoa("admin:secret")}`)
+    })
+
+    it("returns ConnectionError on timeout", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+          return new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => {
+              reject(new DOMException("signal is aborted", "AbortError"))
+            })
+          })
+        })
+      )
+      const client = new RqliteClient({ host: "localhost:4001", timeout: 50 })
+
+      const resultPromise = client.ready()
+      await vi.advanceTimersByTimeAsync(60)
+      const result = await resultPromise
+
+      expect(isErr(result)).toBe(true)
+      if (!result.ok) {
+        expect(ConnectionError.isError(result.error)).toBe(true)
+        expect(result.error.message).toBe("request timed out")
+      }
+    })
   })
 
   describe("nodes()", () => {

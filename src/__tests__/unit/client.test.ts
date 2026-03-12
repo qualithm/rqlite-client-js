@@ -289,3 +289,40 @@ describe("createRqliteClient", () => {
     expect(client).toBeInstanceOf(RqliteClient)
   })
 })
+
+describe("unexpected fetch errors", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it("maps non-TypeError non-AbortError to ConnectionError", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("some unknown error")))
+    const client = new RqliteClient({ host: "localhost:4001", maxRetries: 0 })
+
+    const result = await client.get("/status")
+
+    expect(isErr(result)).toBe(true)
+    if (!result.ok) {
+      expect(ConnectionError.isError(result.error)).toBe(true)
+      expect(result.error.message).toBe("unexpected fetch error")
+    }
+  })
+
+  it("maps non-Error value to ConnectionError without cause", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue("string error"))
+    const client = new RqliteClient({ host: "localhost:4001", maxRetries: 0 })
+
+    const result = await client.get("/status")
+
+    expect(isErr(result)).toBe(true)
+    if (!result.ok) {
+      expect(ConnectionError.isError(result.error)).toBe(true)
+      expect(result.error.message).toBe("unexpected fetch error")
+    }
+  })
+})

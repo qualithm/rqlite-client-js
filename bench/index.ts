@@ -9,7 +9,9 @@
 
 /* eslint-disable no-console */
 
-import { greet } from "../src/greet"
+import { RqliteClient } from "../src/client"
+import { ConnectionError, QueryError, RqliteError } from "../src/errors"
+import { err, isErr, isOk, ok } from "../src/result"
 
 const config = {
   warmupIterations: parseInt(process.env.WARMUP_ITERATIONS ?? "15", 10),
@@ -99,41 +101,85 @@ function formatResult(result: BenchmarkResult): void {
 }
 
 function main(): void {
-  console.log("=== greet() Benchmarks ===\n")
+  console.log("=== rqlite-client Benchmarks ===\n")
   console.log(`Warmup iterations: ${String(config.warmupIterations)}`)
   console.log(`Benchmark iterations: ${config.benchmarkIterations.toLocaleString()}\n`)
 
   const results: BenchmarkResult[] = []
 
-  // Benchmark informal greeting
-  const informalResult = runBenchmark(
-    "greet (informal)",
-    () => greet({ name: "World" }),
+  // Benchmark ok() result creation
+  const okResult = runBenchmark(
+    "ok() creation",
+    () => ok({ lastInsertId: 1, rowsAffected: 1, time: 0.001 }),
     config.benchmarkIterations,
     config.warmupIterations
   )
-  results.push(informalResult)
-  formatResult(informalResult)
+  results.push(okResult)
+  formatResult(okResult)
 
-  // Benchmark formal greeting
-  const formalResult = runBenchmark(
-    "greet (formal)",
-    () => greet({ name: "World", formal: true }),
+  // Benchmark err() result creation
+  const errResult = runBenchmark(
+    "err() creation",
+    () => err(new ConnectionError("test error")),
     config.benchmarkIterations,
     config.warmupIterations
   )
-  results.push(formalResult)
-  formatResult(formalResult)
+  results.push(errResult)
+  formatResult(errResult)
 
-  // Benchmark with longer name
-  const longNameResult = runBenchmark(
-    "greet (long name)",
-    () => greet({ name: "The Quick Brown Fox Jumps Over The Lazy Dog" }),
+  // Benchmark isOk/isErr type narrowing
+  const okVal = ok(42)
+  const errVal = err(new ConnectionError("fail"))
+  const isCheckResult = runBenchmark(
+    "isOk/isErr check",
+    () => {
+      isOk(okVal)
+      isErr(errVal)
+    },
     config.benchmarkIterations,
     config.warmupIterations
   )
-  results.push(longNameResult)
-  formatResult(longNameResult)
+  results.push(isCheckResult)
+  formatResult(isCheckResult)
+
+  // Benchmark error class instantiation
+  const errorResult = runBenchmark(
+    "error instantiation",
+    () => {
+      new ConnectionError("connection refused", { url: "http://localhost:4001" })
+      new QueryError("constraint failed")
+    },
+    config.benchmarkIterations,
+    config.warmupIterations
+  )
+  results.push(errorResult)
+  formatResult(errorResult)
+
+  // Benchmark RqliteError.isError() type narrowing
+  const connErr = new ConnectionError("test")
+  const queryErr = new QueryError("test")
+  const isErrorResult = runBenchmark(
+    "isError() narrowing",
+    () => {
+      RqliteError.isError(connErr)
+      ConnectionError.isError(connErr)
+      QueryError.isError(queryErr)
+    },
+    config.benchmarkIterations,
+    config.warmupIterations
+  )
+  results.push(isErrorResult)
+  formatResult(isErrorResult)
+
+  // Benchmark client construction
+  const clientResult = runBenchmark(
+    "client construction",
+    () => new RqliteClient({ host: "localhost:4001" }),
+    config.benchmarkIterations,
+    config.warmupIterations
+  )
+  results.push(clientResult)
+  formatResult(clientResult)
 
   // Summary
   console.log("=== Summary ===")

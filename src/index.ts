@@ -4,10 +4,6 @@
  * @packageDocumentation
  */
 
-// Legacy — to be removed
-export type { GreetOptions } from "./greet.js"
-export { greet } from "./greet.js"
-
 // Result
 export type { Err, Ok, Result } from "./result.js"
 export { err, isErr, isOk, ok } from "./result.js"
