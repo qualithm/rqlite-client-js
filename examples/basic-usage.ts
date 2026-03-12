@@ -11,7 +11,7 @@
 
 /* eslint-disable no-console */
 
-import { greet, type GreetOptions } from "../src/index"
+import { greet, type GreetOptions } from "@qualithm/rqlite-client"
 
 function main(): void {
   console.log("=== Basic Usage Examples ===\n")

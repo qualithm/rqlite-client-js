@@ -15,7 +15,11 @@
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@qualithm/rqlite-client": ["./src/index.ts"]
+    }
   },
-  "include": ["eslint*.config.ts", "vitest.config.ts", "src", "scripts", "bench", "examples"]
+  "include": ["eslint*.config.ts", "vitest*.config.ts", "src", "scripts", "bench", "examples"]
 }

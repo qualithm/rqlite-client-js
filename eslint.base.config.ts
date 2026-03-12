@@ -243,11 +243,11 @@ export default defineConfig([
   },
 
   // ---------------------------------------------------------------------------
-  // Scripts & Benchmarks
+  // Scripts & Migrations
   // ---------------------------------------------------------------------------
   {
     name: "scripts-overrides",
-    files: ["**/scripts/**/*.{ts,tsx}", "**/benchmarks/**/*.{ts,tsx}"],
+    files: ["**/scripts/**/*.{ts,tsx}", "**/migrations/**/*.{ts,tsx}"],
     rules: {
       "no-console": "off"
     }

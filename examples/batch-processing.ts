@@ -11,7 +11,7 @@
 
 /* eslint-disable no-console */
 
-import { greet } from "../src/index"
+import { greet } from "@qualithm/rqlite-client"
 
 type Person = {
   name: string

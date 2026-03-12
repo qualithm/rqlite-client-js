@@ -6,8 +6,25 @@
   "excludePrivate": true,
   "excludeProtected": true,
   "excludeExternals": true,
+  "excludeInternal": true,
   "includeVersion": true,
   "navigationLinks": {
-    "GitHub": "https://github.com/qualithm/npm-example"
-  }
+    "GitHub": "https://github.com/qualithm/rqlite-client-js"
+  },
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": true
+  },
+  "requiredToBeDocumented": [
+    "Enum",
+    "EnumMember",
+    "Variable",
+    "Function",
+    "Class",
+    "Interface",
+    "Property",
+    "Method",
+    "TypeAlias"
+  ]
 }
