@@ -280,6 +280,60 @@ describe("Cluster Status", () => {
     })
   })
 
+  describe("serverVersion()", () => {
+    it("returns version string from status", async () => {
+      mockFetch({
+        ok: true,
+        status: 200,
+        data: { build: { version: "v9.4.5", branch: "master" } }
+      })
+      const client = new RqliteClient({ host: "localhost:4001" })
+
+      const result = await client.serverVersion()
+
+      expect(isOk(result)).toBe(true)
+      if (result.ok) {
+        expect(result.value).toBe("v9.4.5")
+      }
+    })
+
+    it("returns undefined when build field is missing", async () => {
+      mockFetch({ ok: true, status: 200, data: { http: {} } })
+      const client = new RqliteClient({ host: "localhost:4001" })
+
+      const result = await client.serverVersion()
+
+      expect(isOk(result)).toBe(true)
+      if (result.ok) {
+        expect(result.value).toBeUndefined()
+      }
+    })
+
+    it("returns undefined when version field is missing", async () => {
+      mockFetch({ ok: true, status: 200, data: { build: { branch: "master" } } })
+      const client = new RqliteClient({ host: "localhost:4001" })
+
+      const result = await client.serverVersion()
+
+      expect(isOk(result)).toBe(true)
+      if (result.ok) {
+        expect(result.value).toBeUndefined()
+      }
+    })
+
+    it("propagates errors from status()", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")))
+      const client = new RqliteClient({ host: "localhost:4001", maxRetries: 0 })
+
+      const result = await client.serverVersion()
+
+      expect(isErr(result)).toBe(true)
+      if (!result.ok) {
+        expect(ConnectionError.isError(result.error)).toBe(true)
+      }
+    })
+  })
+
   describe("nodes()", () => {
     const nodesResponse = {
       node1: {

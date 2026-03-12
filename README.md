@@ -50,6 +50,26 @@ if (result.ok) {
 - **Zero dependencies** — uses native `fetch`
 - **Cross-runtime** — Bun, Node.js 20+, Deno
 
+## Compatibility
+
+| rqlite version | Client version | Status |
+| -------------- | -------------- | ------ |
+| 9.x            | 0.x            | Tested |
+
+The integration test suite runs against rqlite via Docker. Override the version with the
+`RQLITE_VERSION` environment variable:
+
+```bash
+RQLITE_VERSION=9.4.5 docker compose -f docker-compose.test.yml up -d
+```
+
+Use `serverVersion()` at runtime to check the connected server:
+
+```ts
+const ver = await client.serverVersion()
+if (ver.ok) console.log(ver.value) // "v9.4.5"
+```
+
 ## Usage
 
 ### Configuration
@@ -73,7 +93,8 @@ const client = createRqliteClient({
     freshnessStrict: true
   },
   followRedirects: true, // follow leader redirects
-  maxRetries: 3, // retry attempts
+  maxRetries: 3, // retry attempts for transient failures
+  maxRedirects: 5, // redirect attempts during leader election
   retryBaseDelay: 100 // backoff base delay (ms)
 })
 ```
@@ -132,6 +153,20 @@ const results = await client.queryBatch([
   ["SELECT * FROM foo WHERE id = ?", 1],
   ["SELECT COUNT(*) FROM foo"]
 ])
+```
+
+#### Converting to Row Objects
+
+Query results use arrays by default (matching the rqlite wire format). Use `toRows()` to convert to
+keyed objects when needed:
+
+```ts
+import { toRows } from "@qualithm/rqlite-client"
+
+const result = await client.query("SELECT id, name FROM foo")
+if (result.ok) {
+  const rows = toRows(result.value) // [{ id: 1, name: "bar" }, ...]
+}
 ```
 
 ### Transactions

@@ -50,8 +50,10 @@ export type RqliteConfig = {
   freshness?: FreshnessOptions
   /** Automatically follow leader redirects (HTTP 301/307). Defaults to `true`. */
   followRedirects?: boolean
-  /** Maximum number of retry attempts for redirects and transient failures. Defaults to `3`. */
+  /** Maximum number of retry attempts for transient failures. Defaults to `3`. */
   maxRetries?: number
+  /** Maximum number of leader redirect attempts. Defaults to `5`. */
+  maxRedirects?: number
   /** Base delay in milliseconds for exponential backoff between retries. Defaults to `100`. */
   retryBaseDelay?: number
 }

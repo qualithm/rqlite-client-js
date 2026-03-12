@@ -59,23 +59,24 @@ and SQLite internals.
 
 ### Features
 
-| Feature            | Implementation                                           |
-| ------------------ | -------------------------------------------------------- |
-| Core types         | `Result<T, E>`, error hierarchy, config, SQL value types |
-| HTTP client        | Native fetch, timeout, JSON serialisation                |
-| Execute (writes)   | Single, batch, parameterised, queue/wait modes           |
-| Query (reads)      | Single, batch, parameterised, associative format         |
-| Unified request    | Mixed read/write via `/db/request`                       |
-| Transactions       | `transaction` flag on execute and request batches        |
-| Parameterised SQL  | Positional `?` placeholders with `SqlValue` binding      |
-| Consistency levels | `none`, `weak`, `strong` with freshness options          |
-| Leader redirect    | Automatic 301/307 following with configurable opt-out    |
-| Retry with backoff | Exponential backoff, configurable max retries            |
-| Authentication     | HTTP basic auth header generation                        |
-| TLS                | HTTPS via native fetch                                   |
-| Cluster status     | Status, readiness, node listing                          |
-| API documentation  | TypeDoc with zero warnings                               |
-| Examples           | Six runnable examples covering all major features        |
+| Feature            | Implementation                                                    |
+| ------------------ | ----------------------------------------------------------------- |
+| Core types         | `Result<T, E>`, error hierarchy, config, SQL value types          |
+| HTTP client        | Native fetch, timeout, JSON serialisation                         |
+| Execute (writes)   | Single, batch, parameterised, queue/wait modes                    |
+| Query (reads)      | Single, batch, parameterised, associative format                  |
+| Result conversion  | `toRows()` utility converts array results to keyed row objects    |
+| Unified request    | Mixed read/write via `/db/request`                                |
+| Transactions       | `transaction` flag on execute and request batches                 |
+| Parameterised SQL  | Positional `?` placeholders with `SqlValue` binding               |
+| Consistency levels | `none`, `weak`, `strong` with freshness options                   |
+| Leader redirect    | Automatic 301/307 following with separate redirect budget         |
+| Retry with backoff | Jittered exponential backoff, separate retry and redirect budgets |
+| Authentication     | HTTP basic auth header generation                                 |
+| TLS                | HTTPS via native fetch                                            |
+| Cluster status     | Status, readiness, node listing, server version                   |
+| API documentation  | TypeDoc with zero warnings                                        |
+| Examples           | Six runnable examples covering all major features                 |
 
 ---
 
@@ -98,18 +99,18 @@ and SQLite internals.
 
 ### Open Decisions
 
-| ID   | Question                                   | Context                                                                |
-| ---- | ------------------------------------------ | ---------------------------------------------------------------------- |
-| OD-1 | Associative vs array result format default | rqlite supports both; associative is more ergonomic, arrays are faster |
-| OD-2 | ~~Automatic leader discovery~~             | Resolved: follow redirects by default with configurable opt-out        |
+| ID   | Question                               | Context                                                                         |
+| ---- | -------------------------------------- | ------------------------------------------------------------------------------- |
+| OD-1 | ~~Associative vs array result format~~ | Resolved: arrays as default (wire format alignment); `toRows()` for convenience |
+| OD-2 | ~~Automatic leader discovery~~         | Resolved: follow redirects by default with configurable opt-out                 |
 
 ### Risks
 
-| ID  | Risk                             | Impact | Mitigation                                                       |
-| --- | -------------------------------- | ------ | ---------------------------------------------------------------- |
-| R-1 | rqlite API versioning            | Medium | Document tested rqlite versions; test against multiple versions  |
-| R-2 | Leader election during requests  | Medium | Implement retry with backoff; document failure modes             |
-| R-3 | Large result set memory pressure | Medium | Streaming support in future; document batch size recommendations |
+| ID  | Risk                             | Impact | Mitigation                                                                            |
+| --- | -------------------------------- | ------ | ------------------------------------------------------------------------------------- |
+| R-1 | rqlite API versioning            | Medium | `serverVersion()` method; README compatibility table; docker-compose version env var  |
+| R-2 | Leader election during requests  | Medium | Jittered exponential backoff; separate redirect and retry budgets; `maxRedirects` opt |
+| R-3 | Large result set memory pressure | Medium | Streaming support in future; document batch size recommendations                      |
 
 ---
 
@@ -241,5 +242,8 @@ Acceptance: No template references remain; package metadata is correct.
 
 > Append-only. Never edit or delete existing entries.
 
-| Date | Learning |
-| ---- | -------- |
+| Date       | Learning                                                                                                                                                                                         |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2025-01-01 | Separate redirect and retry budgets prevent redirects from exhausting retry budget during leader elections                                                                                       |
+| 2025-01-01 | Jittered backoff (`delay * 2^attempt * (0.5 + random()*0.5)`) prevents thundering herd when multiple clients retry simultaneously                                                                |
+| 2025-01-01 | Array result format is the better default — aligns with wire format, avoids object allocation, matches `better-sqlite3` / `pg` driver conventions; `toRows()` utility covers ergonomic use cases |

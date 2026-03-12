@@ -41,8 +41,11 @@ type RequestOptions = {
 // RqliteClient
 // =============================================================================
 
-/** Default maximum number of redirect/retry attempts. */
+/** Default maximum number of retry attempts for transient failures. */
 const DEFAULT_MAX_RETRIES = 3
+
+/** Default maximum number of leader redirect attempts. */
+const DEFAULT_MAX_REDIRECTS = 5
 
 /** Default base delay in milliseconds for exponential backoff. */
 const DEFAULT_RETRY_BASE_DELAY = 100
@@ -55,6 +58,7 @@ export class RqliteClient {
   private readonly config: RqliteConfig
   private readonly followRedirects: boolean
   private readonly maxRetries: number
+  private readonly maxRedirects: number
   private readonly retryBaseDelay: number
 
   constructor(config: RqliteConfig) {
@@ -65,6 +69,7 @@ export class RqliteClient {
     this.config = config
     this.followRedirects = config.followRedirects ?? true
     this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES
+    this.maxRedirects = config.maxRedirects ?? DEFAULT_MAX_REDIRECTS
     this.retryBaseDelay = config.retryBaseDelay ?? DEFAULT_RETRY_BASE_DELAY
   }
 
@@ -238,6 +243,31 @@ export class RqliteClient {
   }
 
   /**
+   * Get the rqlite server version string.
+   *
+   * Extracts the `build.version` field from the `/status` endpoint.
+   * Returns `undefined` if the version field is not present.
+   *
+   * @example
+   * ```ts
+   * const result = await client.serverVersion()
+   * if (result.ok) console.log(result.value) // "v9.4.5"
+   * ```
+   */
+  async serverVersion(): Promise<Result<string | undefined, RqliteError>> {
+    const result = await this.status()
+    if (!result.ok) {
+      return result
+    }
+    const { build } = result.value
+    if (typeof build === "object" && build !== null && "version" in build) {
+      const { version } = build as Record<string, unknown>
+      return ok(typeof version === "string" ? version : undefined)
+    }
+    return ok(undefined)
+  }
+
+  /**
    * Check if the connected rqlite node is ready to accept requests.
    *
    * Calls the `/readyz` endpoint which returns HTTP 200 if the node is ready,
@@ -314,10 +344,12 @@ export class RqliteClient {
 
     const bodyStr = options.body !== undefined ? JSON.stringify(options.body) : undefined
     let lastError: ClientError | undefined
+    let retries = 0
+    let redirects = 0
 
-    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-      if (attempt > 0 && lastError !== undefined) {
-        await sleep(this.retryBaseDelay * 2 ** (attempt - 1))
+    while (retries <= this.maxRetries && redirects <= this.maxRedirects) {
+      if (retries > 0 && lastError !== undefined) {
+        await sleep(jitteredDelay(this.retryBaseDelay, retries - 1))
       }
 
       const controller = new AbortController()
@@ -340,6 +372,7 @@ export class RqliteClient {
           if (location !== null) {
             url = location
             lastError = new ConnectionError("leader redirect", { url })
+            redirects++
             continue
           }
         }
@@ -347,6 +380,7 @@ export class RqliteClient {
         return await handleResponse<T>(response, url)
       } catch (error) {
         lastError = mapFetchError(error, url)
+        retries++
       } finally {
         clearTimeout(timeoutId)
       }
@@ -432,6 +466,12 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
+}
+
+/** Calculate a jittered delay for exponential backoff. */
+function jitteredDelay(baseDelay: number, attempt: number): number {
+  const delay = baseDelay * 2 ** attempt
+  return Math.round(delay * (0.5 + Math.random() * 0.5))
 }
 
 /** Handle a fetch Response and map to Result. */

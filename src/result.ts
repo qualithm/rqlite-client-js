@@ -52,3 +52,31 @@ export function isOk<T, E>(result: Result<T, E>): result is Ok<T> {
 export function isErr<T, E>(result: Result<T, E>): result is Err<E> {
   return !result.ok
 }
+
+/**
+ * Convert a {@link QueryResult} (array format) into an array of row objects.
+ *
+ * Each row is a `Record<string, SqlValue>` keyed by column name.
+ *
+ * @example
+ * ```ts
+ * const result = await client.query("SELECT id, name FROM users")
+ * if (result.ok) {
+ *   const rows = toRows(result.value)
+ *   // [{ id: 1, name: "Alice" }, { id: 2, name: "Bob" }]
+ * }
+ * ```
+ */
+export function toRows(result: {
+  columns: string[]
+  values: unknown[][]
+}): Record<string, unknown>[] {
+  const { columns, values } = result
+  return values.map((row) => {
+    const obj: Record<string, unknown> = {}
+    for (let i = 0; i < columns.length; i++) {
+      obj[columns[i]] = row[i]
+    }
+    return obj
+  })
+}

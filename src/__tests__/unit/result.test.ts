@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { type Err, err, isErr, isOk, type Ok, ok, type Result } from "../../result"
+import { type Err, err, isErr, isOk, type Ok, ok, type Result, toRows } from "../../result"
 
 describe("Result", () => {
   describe("ok", () => {
@@ -86,6 +86,69 @@ describe("Result", () => {
         const errResult: Err<string> = result
         expect(errResult).toBeDefined()
       }
+    })
+  })
+
+  describe("toRows", () => {
+    it("converts array format to row objects", () => {
+      const result = {
+        columns: ["id", "name", "email"],
+        values: [
+          [1, "Alice", "alice@example.com"],
+          [2, "Bob", "bob@example.com"]
+        ]
+      }
+
+      const rows = toRows(result)
+
+      expect(rows).toEqual([
+        { id: 1, name: "Alice", email: "alice@example.com" },
+        { id: 2, name: "Bob", email: "bob@example.com" }
+      ])
+    })
+
+    it("returns empty array when values is empty", () => {
+      const result = {
+        columns: ["id", "name"],
+        values: []
+      }
+
+      const rows = toRows(result)
+
+      expect(rows).toEqual([])
+    })
+
+    it("handles null values", () => {
+      const result = {
+        columns: ["id", "name"],
+        values: [[1, null]]
+      }
+
+      const rows = toRows(result)
+
+      expect(rows).toEqual([{ id: 1, name: null }])
+    })
+
+    it("handles single column", () => {
+      const result = {
+        columns: ["count"],
+        values: [[42]]
+      }
+
+      const rows = toRows(result)
+
+      expect(rows).toEqual([{ count: 42 }])
+    })
+
+    it("handles mixed types", () => {
+      const result = {
+        columns: ["id", "name", "active", "data"],
+        values: [[1, "Alice", true, null]]
+      }
+
+      const rows = toRows(result)
+
+      expect(rows).toEqual([{ id: 1, name: "Alice", active: true, data: null }])
     })
   })
 })

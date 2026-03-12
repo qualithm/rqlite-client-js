@@ -123,7 +123,7 @@ describe("RqliteClient leader handling", () => {
       expect(secondUrl).toBe("http://leader:4001/db/query")
     })
 
-    it("follows multiple redirects up to maxRetries", async () => {
+    it("follows multiple redirects up to maxRedirects", async () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
@@ -148,7 +148,7 @@ describe("RqliteClient leader handling", () => {
           })
         )
       vi.stubGlobal("fetch", fetchMock)
-      const client = createClient({ maxRetries: 3 })
+      const client = createClient({ maxRedirects: 3 })
 
       const resultPromise = client.execute("INSERT INTO foo VALUES(1)")
       await vi.advanceTimersByTimeAsync(1000)
@@ -158,7 +158,7 @@ describe("RqliteClient leader handling", () => {
       expect(fetchMock).toHaveBeenCalledTimes(3)
     })
 
-    it("returns error when max retries exceeded from redirects", async () => {
+    it("returns error when max redirects exceeded", async () => {
       const fetchMock = vi.fn().mockResolvedValue(
         createMockResponse({
           ok: false,
@@ -167,7 +167,7 @@ describe("RqliteClient leader handling", () => {
         })
       )
       vi.stubGlobal("fetch", fetchMock)
-      const client = createClient({ maxRetries: 2 })
+      const client = createClient({ maxRedirects: 2 })
 
       const resultPromise = client.execute("INSERT INTO foo VALUES(1)")
       await vi.advanceTimersByTimeAsync(5000)
@@ -178,8 +178,47 @@ describe("RqliteClient leader handling", () => {
         expect(ConnectionError.isError(result.error)).toBe(true)
         expect(result.error.message).toBe("leader redirect")
       }
-      // 1 initial + 2 retries = 3 total
+      // 1 initial + 2 redirects = 3 total
       expect(fetchMock).toHaveBeenCalledTimes(3)
+    })
+
+    it("redirects do not consume retry budget", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          createMockResponse({
+            ok: false,
+            status: 301,
+            headers: { Location: "http://node2:4001/db/execute" }
+          })
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            ok: false,
+            status: 301,
+            headers: { Location: "http://node3:4001/db/execute" }
+          })
+        )
+        // Network failure after redirects — uses retry budget
+        .mockRejectedValueOnce(new TypeError("fetch failed"))
+        .mockResolvedValueOnce(
+          createMockResponse({
+            ok: true,
+            status: 200,
+            data: { results: [{ rows_affected: 1, time: 0.001 }] }
+          })
+        )
+      vi.stubGlobal("fetch", fetchMock)
+      vi.spyOn(Math, "random").mockReturnValue(0.5)
+      const client = createClient({ maxRetries: 1, maxRedirects: 5 })
+
+      const resultPromise = client.execute("INSERT INTO foo VALUES(1)")
+      await vi.advanceTimersByTimeAsync(5000)
+      const result = await resultPromise
+
+      expect(isOk(result)).toBe(true)
+      // 2 redirects + 1 failure + 1 success = 4 total
+      expect(fetchMock).toHaveBeenCalledTimes(4)
     })
 
     it("does not follow redirects when followRedirects is false", async () => {
@@ -292,7 +331,7 @@ describe("RqliteClient leader handling", () => {
   })
 
   describe("exponential backoff", () => {
-    it("applies exponential backoff between retries", async () => {
+    it("applies jittered exponential backoff between retries", async () => {
       const fetchMock = vi
         .fn()
         .mockRejectedValueOnce(new TypeError("fetch failed"))
@@ -305,22 +344,24 @@ describe("RqliteClient leader handling", () => {
           })
         )
       vi.stubGlobal("fetch", fetchMock)
+      // Mock random to return 0.5 → jitter multiplier = 0.5 + 0.5*0.5 = 0.75
+      vi.spyOn(Math, "random").mockReturnValue(0.5)
       const client = createClient({ retryBaseDelay: 100, maxRetries: 3 })
 
       const resultPromise = client.execute("INSERT INTO foo VALUES(1)")
 
-      // After first failure, should wait 100ms (100 * 2^0)
+      // After first failure, should wait ~75ms (100 * 2^0 * 0.75 = 75)
       await vi.advanceTimersByTimeAsync(50)
       expect(fetchMock).toHaveBeenCalledTimes(1)
 
-      await vi.advanceTimersByTimeAsync(60)
+      await vi.advanceTimersByTimeAsync(30)
       expect(fetchMock).toHaveBeenCalledTimes(2)
 
-      // After second failure, should wait 200ms (100 * 2^1)
+      // After second failure, should wait ~150ms (100 * 2^1 * 0.75 = 150)
       await vi.advanceTimersByTimeAsync(100)
       expect(fetchMock).toHaveBeenCalledTimes(2)
 
-      await vi.advanceTimersByTimeAsync(110)
+      await vi.advanceTimersByTimeAsync(60)
       expect(fetchMock).toHaveBeenCalledTimes(3)
 
       const result = await resultPromise
@@ -339,15 +380,17 @@ describe("RqliteClient leader handling", () => {
           })
         )
       vi.stubGlobal("fetch", fetchMock)
+      // Mock random to return 1.0 → jitter multiplier = 0.5 + 0.5*1.0 = 1.0 (no jitter)
+      vi.spyOn(Math, "random").mockReturnValue(1.0)
       const client = createClient({ retryBaseDelay: 50 })
 
       const resultPromise = client.execute("INSERT INTO foo VALUES(1)")
 
-      // Should wait 50ms (50 * 2^0) before first retry
+      // Should wait 50ms (50 * 2^0 * 1.0) before first retry
       await vi.advanceTimersByTimeAsync(30)
       expect(fetchMock).toHaveBeenCalledTimes(1)
 
-      await vi.advanceTimersByTimeAsync(30)
+      await vi.advanceTimersByTimeAsync(25)
       expect(fetchMock).toHaveBeenCalledTimes(2)
 
       const result = await resultPromise
