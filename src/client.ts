@@ -5,7 +5,7 @@
  * and error mapping. Higher-level operations (execute, query) are built on top.
  */
 
-import { AuthenticationError, ConnectionError, QueryError } from "./errors.js"
+import { AuthenticationError, ConnectionError, QueryError, type RqliteError } from "./errors.js"
 import { err, ok, type Result } from "./result.js"
 import type {
   ClusterNode,
@@ -300,7 +300,7 @@ export class RqliteClient {
   }
 
   /** Execute an HTTP request against rqlite with redirect following and retry. */
-  private async request<T>(options: RequestOptions): Promise<Result<T, RqliteError>> {
+  private async request<T>(options: RequestOptions): Promise<Result<T, ClientError>> {
     const timeout = options.timeout ?? this.defaultTimeout
     let url = this.buildUrl(options.path, options.params)
 
@@ -313,7 +313,7 @@ export class RqliteClient {
     }
 
     const bodyStr = options.body !== undefined ? JSON.stringify(options.body) : undefined
-    let lastError: RqliteError | undefined
+    let lastError: ClientError | undefined
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       if (attempt > 0 && lastError !== undefined) {
@@ -364,7 +364,7 @@ export class RqliteClient {
   private async requestText(
     path: string,
     params?: Record<string, string>
-  ): Promise<Result<ReadyResult, RqliteError>> {
+  ): Promise<Result<ReadyResult, ClientError>> {
     const timeout = this.defaultTimeout
     const url = this.buildUrl(path, params)
 
@@ -419,7 +419,7 @@ export function createRqliteClient(config: RqliteConfig): RqliteClient {
 // Internal Helpers
 // =============================================================================
 
-type RqliteError = ConnectionError | AuthenticationError | QueryError
+type ClientError = ConnectionError | AuthenticationError | QueryError
 
 /** Encode basic auth credentials as a header value. */
 function encodeBasicAuth(auth: RqliteAuth): string {
@@ -435,7 +435,7 @@ async function sleep(ms: number): Promise<void> {
 }
 
 /** Handle a fetch Response and map to Result. */
-async function handleResponse<T>(response: Response, url: string): Promise<Result<T, RqliteError>> {
+async function handleResponse<T>(response: Response, url: string): Promise<Result<T, ClientError>> {
   if (response.status === 401) {
     return err(new AuthenticationError("unauthorised"))
   }
@@ -521,7 +521,7 @@ function buildExecuteParams(options?: ExecuteOptions): Record<string, string> | 
 }
 
 /** Parse the raw rqlite execute response into typed results. */
-function parseExecuteResponse(raw: RqliteExecuteResponse): Result<ExecuteResult[], RqliteError> {
+function parseExecuteResponse(raw: RqliteExecuteResponse): Result<ExecuteResult[], ClientError> {
   if (raw.results === undefined) {
     return err(new ConnectionError("missing results in execute response"))
   }
@@ -586,7 +586,7 @@ function buildQueryParams(
 }
 
 /** Parse the raw rqlite query response into typed results. */
-function parseQueryResponse(raw: RqliteQueryResponse): Result<QueryResult[], RqliteError> {
+function parseQueryResponse(raw: RqliteQueryResponse): Result<QueryResult[], ClientError> {
   if (raw.results === undefined) {
     return err(new ConnectionError("missing results in query response"))
   }
@@ -675,7 +675,7 @@ function isSelectStatement(sql: string): boolean {
 function parseRequestResponse(
   raw: RqliteRequestResponse,
   statements: unknown[]
-): Result<RequestResult[], RqliteError> {
+): Result<RequestResult[], ClientError> {
   if (raw.results === undefined) {
     return err(new ConnectionError("missing results in request response"))
   }

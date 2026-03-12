@@ -22,6 +22,7 @@ const AUTHENTICATION_ERROR_TAG = "AuthenticationError" as const
 
 /** Base error for all rqlite client errors. */
 export class RqliteError extends Error {
+  /** Discriminant tag for identifying error types without `instanceof`. */
   readonly tag: string = RQLITE_ERROR_TAG
 
   constructor(message: string, options?: ErrorOptions) {
@@ -37,6 +38,7 @@ export class RqliteError extends Error {
 
 /** Error connecting to the rqlite cluster. */
 export class ConnectionError extends RqliteError {
+  /** Discriminant tag — always `"ConnectionError"`. */
   override readonly tag = CONNECTION_ERROR_TAG
 
   /** The URL that was being connected to, if available. */
@@ -56,6 +58,7 @@ export class ConnectionError extends RqliteError {
 
 /** Error returned by rqlite for a query or execute operation. */
 export class QueryError extends RqliteError {
+  /** Discriminant tag — always `"QueryError"`. */
   override readonly tag = QUERY_ERROR_TAG
 
   constructor(message: string, options?: ErrorOptions) {
@@ -71,6 +74,7 @@ export class QueryError extends RqliteError {
 
 /** Error when authentication fails against rqlite. */
 export class AuthenticationError extends RqliteError {
+  /** Discriminant tag — always `"AuthenticationError"`. */
   override readonly tag = AUTHENTICATION_ERROR_TAG
 
   constructor(message: string, options?: ErrorOptions) {

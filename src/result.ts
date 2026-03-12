@@ -19,13 +19,17 @@ export type Result<T, E> = Ok<T> | Err<E>
 
 /** Successful result containing a value. */
 export type Ok<T> = {
+  /** Discriminant — always `true` for a successful result. */
   readonly ok: true
+  /** The success value. */
   readonly value: T
 }
 
 /** Failed result containing an error. */
 export type Err<E> = {
+  /** Discriminant — always `false` for a failed result. */
   readonly ok: false
+  /** The error value. */
   readonly error: E
 }
 

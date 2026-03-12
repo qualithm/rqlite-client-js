@@ -1,7 +1,7 @@
 /**
  * Batch processing example.
  *
- * Demonstrates processing multiple items efficiently.
+ * Demonstrates executing and querying multiple statements in a single request.
  *
  * @example
  * ```bash
@@ -11,93 +11,75 @@
 
 /* eslint-disable no-console */
 
-import { greet } from "@qualithm/rqlite-client"
+import { createRqliteClient } from "@qualithm/rqlite-client"
 
-type Person = {
-  name: string
-  title?: string
-  formal?: boolean
-}
+async function main(): Promise<void> {
+  console.log("=== Batch Processing ===\n")
 
-/**
- * Generate greeting for a person, using title if available.
- */
-function greetPerson(person: Person): string {
-  const displayName = person.title !== undefined ? `${person.title} ${person.name}` : person.name
-  return greet({ name: displayName, formal: person.formal })
-}
+  const client = createRqliteClient({ host: "localhost:4001" })
 
-/**
- * Process multiple people and return all greetings.
- */
-function greetAll(people: Person[]): string[] {
-  return people.map(greetPerson)
-}
+  // Set up table
+  await client.execute(
+    "CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY, name TEXT, price REAL)"
+  )
 
-/**
- * Process people with progress callback.
- */
-function greetAllWithProgress(
-  people: Person[],
-  onProgress: (current: number, total: number, result: string) => void
-): string[] {
-  const results: string[] = []
-  const total = people.length
-
-  for (let i = 0; i < people.length; i++) {
-    const result = greetPerson(people[i])
-    results.push(result)
-    onProgress(i + 1, total, result)
+  // Batch insert — multiple statements in a single HTTP call
+  console.log("--- Batch insert ---")
+  const insert = await client.executeBatch([
+    ["INSERT INTO products(name, price) VALUES(?, ?)", "Widget", 9.99],
+    ["INSERT INTO products(name, price) VALUES(?, ?)", "Gadget", 24.99],
+    ["INSERT INTO products(name, price) VALUES(?, ?)", "Doohickey", 4.5]
+  ])
+  if (!insert.ok) {
+    console.error("batch insert failed:", insert.error.message)
+    return
+  }
+  console.log(`  Inserted ${String(insert.value.length)} rows`)
+  for (const result of insert.value) {
+    console.log(`    id=${String(result.lastInsertId)}, affected=${String(result.rowsAffected)}`)
   }
 
-  return results
+  // Batch query — multiple SELECTs in one request
+  console.log("\n--- Batch query ---")
+  const queries = await client.queryBatch([
+    ["SELECT * FROM products WHERE price > ?", 10],
+    ["SELECT COUNT(*) AS total FROM products"]
+  ])
+  if (!queries.ok) {
+    console.error("batch query failed:", queries.error.message)
+    return
+  }
+
+  console.log("  Expensive products:")
+  for (const row of queries.value[0].values) {
+    console.log(`    ${String(row[1])} — $${String(row[2])}`)
+  }
+  console.log(`  Total products: ${String(queries.value[1].values[0]?.[0])}`)
+
+  // Mixed request — reads and writes in a single call
+  console.log("\n--- Mixed request (read + write) ---")
+  const mixed = await client.requestBatch([
+    ["INSERT INTO products(name, price) VALUES(?, ?)", "Thingamajig", 14.99],
+    ["SELECT name, price FROM products ORDER BY price DESC"]
+  ])
+  if (!mixed.ok) {
+    console.error("mixed request failed:", mixed.error.message)
+    return
+  }
+
+  for (const r of mixed.value) {
+    if (r.type === "execute") {
+      console.log(`  Write: ${String(r.rowsAffected)} row(s) affected`)
+    }
+    if (r.type === "query") {
+      console.log(`  Query: ${String(r.values.length)} row(s) returned`)
+      for (const row of r.values) {
+        console.log(`    ${String(row[0])} — $${String(row[1])}`)
+      }
+    }
+  }
+
+  console.log("\nDone.")
 }
 
-function main(): void {
-  console.log("=== Batch Processing Examples ===\n")
-
-  // Sample data
-  const people: Person[] = [
-    { name: "Alice", formal: false },
-    { name: "Bob", title: "Mr.", formal: true },
-    { name: "Carol", title: "Dr.", formal: true },
-    { name: "Dave" },
-    { name: "Eve", title: "Prof.", formal: true }
-  ]
-
-  // Example 1: Simple batch processing
-  console.log("--- Example 1: Simple Batch ---")
-  const greetings = greetAll(people)
-  for (const greeting of greetings) {
-    console.log(`  ${greeting}`)
-  }
-  console.log()
-
-  // Example 2: With progress tracking
-  console.log("--- Example 2: With Progress ---")
-  greetAllWithProgress(people, (current, total, result) => {
-    const percent = ((current / total) * 100).toFixed(0)
-    console.log(`  [${percent.padStart(3)}%] ${result}`)
-  })
-  console.log()
-
-  // Example 3: Filter and transform
-  console.log("--- Example 3: Filter Formal Only ---")
-  const formalPeople = people.filter((p) => p.formal === true)
-  const formalGreetings = greetAll(formalPeople)
-  console.log(`  Found ${String(formalGreetings.length)} formal greetings:`)
-  for (const greeting of formalGreetings) {
-    console.log(`    ${greeting}`)
-  }
-  console.log()
-
-  // Example 4: Reduce to single message
-  console.log("--- Example 4: Combined Message ---")
-  const allNames = people.map((p) => p.name).join(", ")
-  const combinedGreeting = greet({ name: `everyone (${allNames})` })
-  console.log(`  ${combinedGreeting}`)
-
-  console.log("\nExamples complete.")
-}
-
-main()
+void main()

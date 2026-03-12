@@ -1,21 +1,25 @@
 # Examples
 
-This directory contains runnable examples demonstrating library usage.
+Runnable examples demonstrating rqlite client usage. Requires a running rqlite instance (default:
+`localhost:4001`).
 
-## Running Examples
+## Running
 
 ```bash
-# Basic usage
-bun run examples/basic-usage.ts
+# Start a local rqlite node
+docker run -p 4001:4001 rqlite/rqlite
 
-# Error handling
-bun run examples/error-handling.ts
+# Run any example
+bun run examples/basic-usage.ts
 ```
 
 ## Example Files
 
-| File                                       | Description                         |
-| ------------------------------------------ | ----------------------------------- |
-| [basic-usage.ts](basic-usage.ts)           | Simple greeting examples            |
-| [error-handling.ts](error-handling.ts)     | Input validation and error handling |
-| [batch-processing.ts](batch-processing.ts) | Processing multiple items           |
+| File                                       | Description                                    |
+| ------------------------------------------ | ---------------------------------------------- |
+| [basic-usage.ts](basic-usage.ts)           | Connect, execute writes, and query reads       |
+| [batch-processing.ts](batch-processing.ts) | Batch insert, batch query, and mixed requests  |
+| [transactions.ts](transactions.ts)         | Atomic multi-statement transactions            |
+| [authentication.ts](authentication.ts)     | Basic auth credentials and TLS                 |
+| [cluster-failover.ts](cluster-failover.ts) | Leader redirect, health checks, cluster nodes  |
+| [error-handling.ts](error-handling.ts)     | Result-based error handling and type narrowing |

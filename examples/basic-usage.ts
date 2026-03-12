@@ -1,7 +1,7 @@
 /**
- * Basic usage example.
+ * Basic usage example — connect, execute, and query.
  *
- * Demonstrates the fundamental greet function usage patterns.
+ * Demonstrates creating a client, inserting data, and reading it back.
  *
  * @example
  * ```bash
@@ -11,42 +11,58 @@
 
 /* eslint-disable no-console */
 
-import { greet, type GreetOptions } from "@qualithm/rqlite-client"
+import { createRqliteClient } from "@qualithm/rqlite-client"
 
-function main(): void {
-  console.log("=== Basic Usage Examples ===\n")
+async function main(): Promise<void> {
+  console.log("=== Basic Usage ===\n")
 
-  // Example 1: Simple informal greeting
-  console.log("--- Example 1: Informal Greeting ---")
-  const informal = greet({ name: "World" })
-  console.log(`  Result: ${informal}`)
-  console.log()
+  // Create a client connected to a local rqlite node
+  const client = createRqliteClient({ host: "localhost:4001" })
 
-  // Example 2: Formal greeting
-  console.log("--- Example 2: Formal Greeting ---")
-  const formal = greet({ name: "Dr. Smith", formal: true })
-  console.log(`  Result: ${formal}`)
-  console.log()
-
-  // Example 3: Using typed options
-  console.log("--- Example 3: Typed Options ---")
-  const options: GreetOptions = {
-    name: "TypeScript Developer",
-    formal: false
+  // Create a table
+  console.log("--- Creating table ---")
+  const create = await client.execute(
+    "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)"
+  )
+  if (!create.ok) {
+    console.error("failed to create table:", create.error.message)
+    return
   }
-  const typed = greet(options)
-  console.log(`  Options: ${JSON.stringify(options)}`)
-  console.log(`  Result: ${typed}`)
-  console.log()
+  console.log("  Table created\n")
 
-  // Example 4: Dynamic name
-  console.log("--- Example 4: Dynamic Name ---")
-  const names = ["Alice", "Bob", "Charlie"]
-  for (const name of names) {
-    console.log(`  ${name}: ${greet({ name })}`)
+  // Insert a row with parameterised values
+  console.log("--- Inserting row ---")
+  const insert = await client.execute("INSERT INTO users(name, email) VALUES(?, ?)", [
+    "Alice",
+    "alice@example.com"
+  ])
+  if (!insert.ok) {
+    console.error("failed to insert:", insert.error.message)
+    return
+  }
+  console.log(`  Inserted row (id: ${String(insert.value.lastInsertId)})\n`)
+
+  // Query the data back
+  console.log("--- Querying rows ---")
+  const query = await client.query("SELECT * FROM users")
+  if (!query.ok) {
+    console.error("failed to query:", query.error.message)
+    return
   }
 
-  console.log("\nExamples complete.")
+  console.log(`  Columns: ${query.value.columns.join(", ")}`)
+  for (const row of query.value.values) {
+    console.log(`  Row: ${row.join(", ")}`)
+  }
+
+  // Parameterised query
+  console.log("\n--- Parameterised query ---")
+  const find = await client.query("SELECT name, email FROM users WHERE name = ?", ["Alice"])
+  if (find.ok) {
+    console.log(`  Found ${String(find.value.values.length)} row(s)`)
+  }
+
+  console.log("\nDone.")
 }
 
-main()
+void main()

@@ -59,20 +59,23 @@ and SQLite internals.
 
 ### Features
 
-| Feature            | Status      | Notes |
-| ------------------ | ----------- | ----- |
-| Core types         | Done        |       |
-| HTTP client        | Done        |       |
-| Execute (writes)   | Done        |       |
-| Query (reads)      | Done        |       |
-| Batch operations   | Not started |       |
-| Transactions       | Not started |       |
-| Parameterised SQL  | Not started |       |
-| Consistency levels | Not started |       |
-| Leader redirect    | Done        |       |
-| Authentication     | Not started |       |
-| Cluster status     | Done        |       |
-| Cross-runtime      | Not started |       |
+| Feature            | Implementation                                           |
+| ------------------ | -------------------------------------------------------- |
+| Core types         | `Result<T, E>`, error hierarchy, config, SQL value types |
+| HTTP client        | Native fetch, timeout, JSON serialisation                |
+| Execute (writes)   | Single, batch, parameterised, queue/wait modes           |
+| Query (reads)      | Single, batch, parameterised, associative format         |
+| Unified request    | Mixed read/write via `/db/request`                       |
+| Transactions       | `transaction` flag on execute and request batches        |
+| Parameterised SQL  | Positional `?` placeholders with `SqlValue` binding      |
+| Consistency levels | `none`, `weak`, `strong` with freshness options          |
+| Leader redirect    | Automatic 301/307 following with configurable opt-out    |
+| Retry with backoff | Exponential backoff, configurable max retries            |
+| Authentication     | HTTP basic auth header generation                        |
+| TLS                | HTTPS via native fetch                                   |
+| Cluster status     | Status, readiness, node listing                          |
+| API documentation  | TypeDoc with zero warnings                               |
+| Examples           | Six runnable examples covering all major features        |
 
 ---
 
@@ -212,13 +215,13 @@ Acceptance: `bun test` runs unit tests; `bun test:integration` runs against real
 
 ### Documentation & Examples
 
-- [ ] TypeDoc API documentation
-- [ ] Basic usage example (connect, query, execute)
-- [ ] Batch operations example
-- [ ] Transaction example
-- [ ] Authentication example
-- [ ] Cluster failover example
-- [ ] README with comprehensive usage guide
+- [x] TypeDoc API documentation
+- [x] Basic usage example (connect, query, execute)
+- [x] Batch operations example
+- [x] Transaction example
+- [x] Authentication example
+- [x] Cluster failover example
+- [x] README with comprehensive usage guide
 
 Acceptance: Complete API docs; runnable examples for all major features.
 

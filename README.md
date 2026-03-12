@@ -4,8 +4,247 @@
 [![codecov](https://codecov.io/gh/qualithm/rqlite-client-js/graph/badge.svg)](https://codecov.io/gh/qualithm/rqlite-client-js)
 [![npm](https://img.shields.io/npm/v/@qualithm/rqlite-client)](https://www.npmjs.com/package/@qualithm/rqlite-client)
 
-Native rqlite client for JavaScript and TypeScript runtimes. Implements the rqlite HTTP API for
-executing SQL statements, querying data, and managing cluster operations.
+Native [rqlite](https://rqlite.io) client for JavaScript and TypeScript runtimes. Zero runtime
+dependencies — uses native `fetch`.
+
+## Install
+
+```bash
+npm install @qualithm/rqlite-client
+```
+
+## Quick Start
+
+```ts
+import { createRqliteClient } from "@qualithm/rqlite-client"
+
+const client = createRqliteClient({ host: "localhost:4001" })
+
+// Execute a write
+await client.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+await client.execute("INSERT INTO users(name) VALUES(?)", ["Alice"])
+
+// Query
+const result = await client.query("SELECT * FROM users")
+if (result.ok) {
+  console.log(result.value.columns) // ["id", "name"]
+  console.log(result.value.values) // [[1, "Alice"]]
+}
+```
+
+## Features
+
+- **Execute & Query** — parameterised writes and reads
+- **Batch operations** — multiple statements in a single HTTP call
+- **Transactions** — atomic multi-statement execution
+- **Unified requests** — mixed read/write batches via `/db/request`
+- **Consistency levels** — `none`, `weak`, `strong`
+- **Freshness control** — bounded staleness for `none` consistency reads
+- **Leader redirect** — automatic 301/307 redirect following
+- **Retry with backoff** — configurable exponential backoff
+- **Authentication** — HTTP basic auth
+- **TLS** — HTTPS support via native fetch
+- **Cluster inspection** — node status, readiness, and cluster listing
+- **Result types** — `Result<T, E>` discriminated unions, no thrown exceptions
+- **Typed errors** — `ConnectionError`, `QueryError`, `AuthenticationError` with `isError()` guards
+- **Zero dependencies** — uses native `fetch`
+- **Cross-runtime** — Bun, Node.js 20+, Deno
+
+## Usage
+
+### Configuration
+
+```ts
+import { createRqliteClient } from "@qualithm/rqlite-client"
+
+const client = createRqliteClient({
+  host: "localhost:4001",
+  tls: false, // use HTTPS
+  auth: {
+    // basic authentication
+    username: "admin",
+    password: "secret"
+  },
+  timeout: 10_000, // default request timeout (ms)
+  consistencyLevel: "weak", // default for queries
+  freshness: {
+    // for "none" consistency
+    freshness: "5s",
+    freshnessStrict: true
+  },
+  followRedirects: true, // follow leader redirects
+  maxRetries: 3, // retry attempts
+  retryBaseDelay: 100 // backoff base delay (ms)
+})
+```
+
+### Execute (Writes)
+
+```ts
+// Simple statement
+const result = await client.execute("CREATE TABLE foo (id INTEGER PRIMARY KEY, name TEXT)")
+
+// Parameterised statement
+const insert = await client.execute("INSERT INTO foo(name) VALUES(?)", ["bar"])
+if (insert.ok) {
+  console.log(insert.value.lastInsertId) // 1
+  console.log(insert.value.rowsAffected) // 1
+}
+
+// Batch execute
+const batch = await client.executeBatch([
+  ["INSERT INTO foo(name) VALUES(?)", "one"],
+  ["INSERT INTO foo(name) VALUES(?)", "two"]
+])
+
+// Queue mode — returns immediately, write applied asynchronously
+await client.execute("INSERT INTO foo(name) VALUES(?)", ["queued"], { queue: true })
+
+// Wait mode — wait for queued write to be applied
+await client.execute("INSERT INTO foo(name) VALUES(?)", ["waited"], { queue: true, wait: true })
+```
+
+### Query (Reads)
+
+```ts
+// Simple query
+const result = await client.query("SELECT * FROM foo")
+if (result.ok) {
+  console.log(result.value.columns) // ["id", "name"]
+  console.log(result.value.types) // ["integer", "text"]
+  console.log(result.value.values) // [[1, "bar"], [2, "baz"]]
+}
+
+// Parameterised query
+const row = await client.query("SELECT * FROM foo WHERE id = ?", [1])
+
+// With consistency level
+const strong = await client.query("SELECT * FROM foo", undefined, { level: "strong" })
+
+// Freshness for stale reads
+const fresh = await client.query("SELECT * FROM foo", undefined, {
+  level: "none",
+  freshness: { freshness: "1s", freshnessStrict: true }
+})
+
+// Batch query
+const results = await client.queryBatch([
+  ["SELECT * FROM foo WHERE id = ?", 1],
+  ["SELECT COUNT(*) FROM foo"]
+])
+```
+
+### Transactions
+
+```ts
+// All statements succeed or all fail
+const transfer = await client.executeBatch(
+  [
+    ["UPDATE accounts SET balance = balance - ? WHERE id = ?", 100, 1],
+    ["UPDATE accounts SET balance = balance + ? WHERE id = ?", 100, 2]
+  ],
+  { transaction: true }
+)
+```
+
+### Unified Request (Mixed Read/Write)
+
+```ts
+const results = await client.requestBatch([
+  ["INSERT INTO foo(name) VALUES(?)", "new"],
+  ["SELECT * FROM foo"]
+])
+
+if (results.ok) {
+  for (const r of results.value) {
+    if (r.type === "execute") console.log(r.rowsAffected)
+    if (r.type === "query") console.log(r.columns, r.values)
+  }
+}
+```
+
+### Cluster Operations
+
+```ts
+// Node readiness
+const ready = await client.ready()
+if (ready.ok && ready.value.ready) {
+  console.log("node is ready, leader:", ready.value.isLeader)
+}
+
+// Check readiness without requiring a leader (useful during elections)
+await client.ready({ noleader: true })
+
+// List cluster nodes
+const nodes = await client.nodes()
+if (nodes.ok) {
+  for (const node of nodes.value) {
+    console.log(node.id, node.leader ? "(leader)" : "", node.apiAddr)
+  }
+}
+
+// Full node status
+const status = await client.status()
+```
+
+### Error Handling
+
+All operations return `Result<T, RqliteError>` — no exceptions are thrown in normal operation.
+
+```ts
+const result = await client.query("SELECT * FROM foo")
+
+if (!result.ok) {
+  const error = result.error
+
+  // Type narrowing with static guards
+  if (ConnectionError.isError(error)) {
+    console.log("network issue:", error.message, error.url)
+  } else if (QueryError.isError(error)) {
+    console.log("SQL error:", error.message)
+  } else if (AuthenticationError.isError(error)) {
+    console.log("auth failed:", error.message)
+  }
+}
+```
+
+Errors can also be matched by their `tag` property:
+
+```ts
+if (!result.ok) {
+  switch (result.error.tag) {
+    case "ConnectionError": // network, timeout, redirect
+    case "QueryError": // SQL errors from rqlite
+    case "AuthenticationError": // 401/403
+  }
+}
+```
+
+## API Reference
+
+Full API documentation is generated with [TypeDoc](https://typedoc.org/):
+
+```bash
+bun run docs
+# Output in docs/
+```
+
+## Examples
+
+See the [`examples/`](examples/) directory for runnable examples:
+
+| Example                                               | Description                                    |
+| ----------------------------------------------------- | ---------------------------------------------- |
+| [`basic-usage.ts`](examples/basic-usage.ts)           | Connect, execute, and query                    |
+| [`batch-processing.ts`](examples/batch-processing.ts) | Batch insert, query, and mixed requests        |
+| [`transactions.ts`](examples/transactions.ts)         | Atomic multi-statement transactions            |
+| [`authentication.ts`](examples/authentication.ts)     | Basic auth and TLS                             |
+| [`cluster-failover.ts`](examples/cluster-failover.ts) | Leader redirect, health checks, cluster status |
+| [`error-handling.ts`](examples/error-handling.ts)     | Result-based error handling and type narrowing |
+
+```bash
+bun run examples/basic-usage.ts
+```
 
 ## Development
 
@@ -28,7 +267,9 @@ bun run build
 ### Testing
 
 ```bash
-bun test
+bun test             # unit tests
+bun run test:integration  # against a real rqlite instance
+bun run test:coverage     # with coverage report
 ```
 
 ### Linting & Formatting

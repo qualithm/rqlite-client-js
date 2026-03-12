@@ -1,7 +1,7 @@
 /**
  * Error handling example.
  *
- * Demonstrates input validation and error handling patterns.
+ * Demonstrates Result-based error handling and typed error narrowing.
  *
  * @example
  * ```bash
@@ -11,99 +11,76 @@
 
 /* eslint-disable no-console */
 
-import { greet, type GreetOptions } from "@qualithm/rqlite-client"
+import {
+  AuthenticationError,
+  ConnectionError,
+  createRqliteClient,
+  QueryError,
+  RqliteError
+} from "@qualithm/rqlite-client"
 
-/**
- * Validates greeting options before processing.
- * In a real library, you might throw custom errors.
- */
-function validateOptions(options: unknown): options is GreetOptions {
-  if (typeof options !== "object" || options === null) {
-    return false
+async function main(): Promise<void> {
+  console.log("=== Error Handling ===\n")
+
+  // All operations return Result<T, RqliteError> — no exceptions thrown
+  const client = createRqliteClient({ host: "localhost:4001" })
+
+  // Example 1: Basic Result checking
+  console.log("--- Result checking ---")
+  const result = await client.query("SELECT 1")
+  if (result.ok) {
+    console.log("  Query succeeded:", result.value.values)
+  } else {
+    console.log("  Query failed:", result.error.message)
   }
 
-  const obj = options as Record<string, unknown>
+  // Example 2: Type narrowing with static isError() methods
+  console.log("\n--- Error type narrowing ---")
+  const bad = await client.execute("INVALID SQL STATEMENT")
+  if (!bad.ok) {
+    const { error } = bad
 
-  if (typeof obj.name !== "string") {
-    return false
+    if (ConnectionError.isError(error)) {
+      console.log(`  Connection error: ${error.message}`)
+      console.log(`  URL: ${error.url ?? "unknown"}`)
+    } else if (QueryError.isError(error)) {
+      console.log(`  SQL error: ${error.message}`)
+    } else if (AuthenticationError.isError(error)) {
+      console.log(`  Auth error: ${error.message}`)
+    } else if (RqliteError.isError(error)) {
+      console.log(`  General rqlite error: ${error.message}`)
+    }
   }
 
-  if (obj.formal !== undefined && typeof obj.formal !== "boolean") {
-    return false
+  // Example 3: Handling connection failures gracefully
+  console.log("\n--- Connection failure ---")
+  const offline = createRqliteClient({ host: "localhost:9999", timeout: 2000, maxRetries: 0 })
+  const fail = await offline.query("SELECT 1")
+  if (!fail.ok) {
+    console.log(`  Expected failure: ${fail.error.message}`)
+    console.log(`  Error class: ${fail.error.constructor.name}`)
   }
 
-  return true
+  // Example 4: Discriminant tag matching
+  console.log("\n--- Tag-based matching ---")
+  const tagResult = await client.execute("DROP TABLE nonexistent_table")
+  if (!tagResult.ok) {
+    switch (tagResult.error.tag) {
+      case "ConnectionError":
+        console.log("  Network issue")
+        break
+      case "QueryError":
+        console.log("  SQL issue")
+        break
+      case "AuthenticationError":
+        console.log("  Auth issue")
+        break
+      default:
+        console.log("  Unknown error")
+    }
+  }
+
+  console.log("\nDone.")
 }
 
-/**
- * Safe wrapper that validates input before greeting.
- */
-function safeGreet(options: unknown): string {
-  if (!validateOptions(options)) {
-    throw new Error("Invalid options: expected { name: string, formal?: boolean }")
-  }
-
-  // Validate name is not empty
-  if (options.name.trim() === "") {
-    throw new Error("Name cannot be empty or whitespace-only")
-  }
-
-  return greet(options)
-}
-
-function main(): void {
-  console.log("=== Error Handling Examples ===\n")
-
-  // Example 1: Valid input
-  console.log("--- Example 1: Valid Input ---")
-  try {
-    const result = safeGreet({ name: "Valid User" })
-    console.log(`  Result: ${result}`)
-  } catch (error) {
-    console.log(`  Error: ${(error as Error).message}`)
-  }
-  console.log()
-
-  // Example 2: Missing name property
-  console.log("--- Example 2: Missing Name ---")
-  try {
-    const result = safeGreet({ formal: true })
-    console.log(`  Result: ${result}`)
-  } catch (error) {
-    console.log(`  Error: ${(error as Error).message}`)
-  }
-  console.log()
-
-  // Example 3: Empty name
-  console.log("--- Example 3: Empty Name ---")
-  try {
-    const result = safeGreet({ name: "   " })
-    console.log(`  Result: ${result}`)
-  } catch (error) {
-    console.log(`  Error: ${(error as Error).message}`)
-  }
-  console.log()
-
-  // Example 4: Wrong type for formal
-  console.log("--- Example 4: Invalid Formal Type ---")
-  try {
-    const result = safeGreet({ name: "Test", formal: "yes" })
-    console.log(`  Result: ${result}`)
-  } catch (error) {
-    console.log(`  Error: ${(error as Error).message}`)
-  }
-  console.log()
-
-  // Example 5: Null input
-  console.log("--- Example 5: Null Input ---")
-  try {
-    const result = safeGreet(null)
-    console.log(`  Result: ${result}`)
-  } catch (error) {
-    console.log(`  Error: ${(error as Error).message}`)
-  }
-
-  console.log("\nExamples complete.")
-}
-
-main()
+void main()

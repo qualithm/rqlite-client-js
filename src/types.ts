@@ -123,10 +123,20 @@ export type RequestOptions = {
 // Request Results
 // =============================================================================
 
+/** A query result tagged with `type: "query"` for use in mixed request responses. */
+export type TaggedQueryResult = {
+  /** Discriminant — always `"query"` for SELECT results. */
+  type: "query"
+} & QueryResult
+
+/** An execute result tagged with `type: "execute"` for use in mixed request responses. */
+export type TaggedExecuteResult = {
+  /** Discriminant — always `"execute"` for write results. */
+  type: "execute"
+} & ExecuteResult
+
 /** A single result from the unified request endpoint — either a query or execute result. */
-export type RequestResult =
-  | ({ type: "query" } & QueryResult)
-  | ({ type: "execute" } & ExecuteResult)
+export type RequestResult = TaggedQueryResult | TaggedExecuteResult
 
 // =============================================================================
 // Query Results

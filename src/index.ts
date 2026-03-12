@@ -33,5 +33,7 @@ export type {
   RqliteAuth,
   RqliteConfig,
   SqlStatement,
-  SqlValue
+  SqlValue,
+  TaggedExecuteResult,
+  TaggedQueryResult
 } from "./types.js"
