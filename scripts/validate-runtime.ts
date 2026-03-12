@@ -17,45 +17,92 @@ import { join } from "node:path"
 
 function getTestCode(importPath: string): string {
   return `
-import { greet } from "${importPath}";
+import {
+  RqliteClient,
+  createRqliteClient,
+  ok,
+  err,
+  isOk,
+  isErr,
+  RqliteError,
+  ConnectionError,
+  QueryError,
+  AuthenticationError,
+} from "${importPath}";
 
 let passed = 0;
 let failed = 0;
 
-// Check export exists and is a function
-if (typeof greet === "function") {
-  passed++;
-} else {
-  failed++;
-  console.error("FAIL: greet is not a function");
-}
-
-// Test casual greeting
-try {
-  const result = greet({ name: "World" });
-  if (result === "Hello, World!") {
+function assert(condition, label) {
+  if (condition) {
     passed++;
   } else {
     failed++;
-    console.error("FAIL: casual greet returned:", result);
+    console.error("FAIL:", label);
   }
-} catch (error) {
-  failed++;
-  console.error("FAIL: greet threw:", error);
 }
 
-// Test formal greeting
+// Check exports exist
+assert(typeof RqliteClient === "function", "RqliteClient is a function");
+assert(typeof createRqliteClient === "function", "createRqliteClient is a function");
+assert(typeof ok === "function", "ok is a function");
+assert(typeof err === "function", "err is a function");
+assert(typeof isOk === "function", "isOk is a function");
+assert(typeof isErr === "function", "isErr is a function");
+assert(typeof RqliteError === "function", "RqliteError is a function");
+assert(typeof ConnectionError === "function", "ConnectionError is a function");
+assert(typeof QueryError === "function", "QueryError is a function");
+assert(typeof AuthenticationError === "function", "AuthenticationError is a function");
+
+// Test Result helpers
+const okResult = ok(42);
+assert(isOk(okResult) === true, "isOk returns true for ok result");
+assert(okResult.value === 42, "ok result contains value");
+
+const errResult = err(new Error("test"));
+assert(isErr(errResult) === true, "isErr returns true for err result");
+
+// Test client construction
 try {
-  const result = greet({ name: "Professor", formal: true });
-  if (result === "Good day, Professor.") {
-    passed++;
-  } else {
-    failed++;
-    console.error("FAIL: formal greet returned:", result);
-  }
+  const client = new RqliteClient({ host: "localhost:4001" });
+  assert(client instanceof RqliteClient, "RqliteClient constructor works");
 } catch (error) {
   failed++;
-  console.error("FAIL: formal greet threw:", error);
+  console.error("FAIL: RqliteClient constructor threw:", error);
+}
+
+// Test factory function
+try {
+  const client = createRqliteClient({ host: "localhost:4001" });
+  assert(client instanceof RqliteClient, "createRqliteClient works");
+} catch (error) {
+  failed++;
+  console.error("FAIL: createRqliteClient threw:", error);
+}
+
+// Test error hierarchy
+try {
+  const connErr = new ConnectionError("test connection error");
+  assert(ConnectionError.isError(connErr), "ConnectionError.isError works");
+  assert(RqliteError.isError(connErr), "ConnectionError is RqliteError");
+
+  const queryErr = new QueryError("test query error");
+  assert(QueryError.isError(queryErr), "QueryError.isError works");
+
+  const authErr = new AuthenticationError("test auth error");
+  assert(AuthenticationError.isError(authErr), "AuthenticationError.isError works");
+} catch (error) {
+  failed++;
+  console.error("FAIL: error hierarchy threw:", error);
+}
+
+// Test TLS configuration
+try {
+  const client = new RqliteClient({ host: "localhost:4001", tls: true });
+  assert(client instanceof RqliteClient, "TLS client construction works");
+} catch (error) {
+  failed++;
+  console.error("FAIL: TLS client construction threw:", error);
 }
 
 console.log(\`Passed: \${passed}, Failed: \${failed}\`);

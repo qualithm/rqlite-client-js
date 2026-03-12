@@ -1,0 +1,190 @@
+{
+  "execute": {
+    "createTable": {
+      "status": 200,
+      "body": {
+        "results": [
+          {
+            "time": 0.000452
+          }
+        ]
+      }
+    },
+    "insertRow": {
+      "status": 200,
+      "body": {
+        "results": [
+          {
+            "last_insert_id": 1,
+            "rows_affected": 1,
+            "time": 0.000312
+          }
+        ]
+      }
+    },
+    "insertBatch": {
+      "status": 200,
+      "body": {
+        "results": [
+          {
+            "last_insert_id": 2,
+            "rows_affected": 1,
+            "time": 0.000218
+          },
+          {
+            "last_insert_id": 3,
+            "rows_affected": 1,
+            "time": 0.000195
+          }
+        ]
+      }
+    },
+    "sqlError": {
+      "status": 200,
+      "body": {
+        "results": [
+          {
+            "error": "near \"INVALID\": syntax error"
+          }
+        ]
+      }
+    }
+  },
+  "query": {
+    "selectRows": {
+      "status": 200,
+      "body": {
+        "results": [
+          {
+            "columns": ["id", "name", "email"],
+            "types": ["integer", "text", "text"],
+            "values": [
+              [1, "Alice", "alice@example.com"],
+              [2, "Bob", "bob@example.com"]
+            ],
+            "time": 0.000127
+          }
+        ]
+      }
+    },
+    "selectCount": {
+      "status": 200,
+      "body": {
+        "results": [
+          {
+            "columns": ["COUNT(*)"],
+            "types": ["integer"],
+            "values": [[5]],
+            "time": 0.000089
+          }
+        ]
+      }
+    },
+    "emptyResult": {
+      "status": 200,
+      "body": {
+        "results": [
+          {
+            "columns": ["id", "name"],
+            "types": ["integer", "text"],
+            "time": 0.000067
+          }
+        ]
+      }
+    }
+  },
+  "status": {
+    "healthy": {
+      "status": 200,
+      "body": {
+        "build": {
+          "branch": "master",
+          "build_time": "2024-01-15T10:00:00Z",
+          "commit": "abc123def456",
+          "version": "v8.36.5"
+        },
+        "http": {
+          "addr": "0.0.0.0:4001",
+          "auth": "disabled",
+          "redirect": ""
+        },
+        "store": {
+          "dir": "/rqlite/file/data",
+          "raft": {
+            "applied_index": 42,
+            "commit_index": 42,
+            "fsm_index": 42,
+            "last_log_index": 42,
+            "last_log_term": 1,
+            "state": "Leader"
+          }
+        }
+      }
+    }
+  },
+  "nodes": {
+    "singleNode": {
+      "status": 200,
+      "body": {
+        "1": {
+          "id": "1",
+          "api_addr": "http://localhost:4001",
+          "addr": "localhost:4002",
+          "leader": true,
+          "reachable": true,
+          "time": 0.0
+        }
+      }
+    },
+    "threeNodes": {
+      "status": 200,
+      "body": {
+        "1": {
+          "id": "1",
+          "api_addr": "http://localhost:4001",
+          "addr": "localhost:4002",
+          "leader": true,
+          "reachable": true,
+          "time": 0.0
+        },
+        "2": {
+          "id": "2",
+          "api_addr": "http://localhost:4003",
+          "addr": "localhost:4004",
+          "leader": false,
+          "reachable": true,
+          "time": 0.001234
+        },
+        "3": {
+          "id": "3",
+          "api_addr": "http://localhost:4005",
+          "addr": "localhost:4006",
+          "leader": false,
+          "reachable": true,
+          "time": 0.002345
+        }
+      }
+    }
+  },
+  "errors": {
+    "unauthorised": {
+      "status": 401,
+      "body": "unauthorised"
+    },
+    "forbidden": {
+      "status": 403,
+      "body": "forbidden"
+    },
+    "serviceUnavailable": {
+      "status": 503,
+      "body": "leadership transfer in progress"
+    },
+    "leaderRedirect": {
+      "status": 301,
+      "headers": {
+        "Location": "http://leader-node:4001/db/execute"
+      },
+      "body": ""
+    }
+  }
+}

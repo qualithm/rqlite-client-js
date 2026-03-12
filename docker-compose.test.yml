@@ -1,0 +1,14 @@
+services:
+  rqlite:
+    image: rqlite/rqlite:9.4.5
+    ports:
+      - "4001:4001"
+      - "4002:4002"
+    command: >
+      -node-id=1 -http-addr=0.0.0.0:4001 -raft-addr=0.0.0.0:4002
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4001/readyz"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+      start_period: 5s

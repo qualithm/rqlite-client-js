@@ -203,10 +203,10 @@ Acceptance: Can inspect cluster state; health checks work.
 
 ### Testing Infrastructure
 
-- [ ] Integration test harness with rqlite Docker container
-- [ ] HTTP response fixture capture and replay
-- [ ] Property-based tests for SQL parameterisation edge cases
-- [ ] Cross-runtime validation script (Bun, Node.js, Deno)
+- [x] Integration test harness with rqlite Docker container
+- [x] HTTP response fixture capture and replay
+- [x] Property-based tests for SQL parameterisation edge cases
+- [x] Cross-runtime validation script (Bun, Node.js, Deno)
 
 Acceptance: `bun test` runs unit tests; `bun test:integration` runs against real rqlite.
 
