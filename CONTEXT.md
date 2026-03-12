@@ -55,13 +55,14 @@ and SQLite internals.
 | `result.ts` | `Result<T, E>` discriminated union with `ok`/`err` helpers                             |
 | `errors.ts` | Error hierarchy: `RqliteError`, `ConnectionError`, `QueryError`, `AuthenticationError` |
 | `types.ts`  | Domain types: config, SQL values, query/execute results, consistency levels            |
+| `client.ts` | `RqliteClient` class with fetch wrapper, timeout, auth, error mapping                  |
 
 ### Features
 
 | Feature            | Status      | Notes |
 | ------------------ | ----------- | ----- |
 | Core types         | Done        |       |
-| HTTP client        | Not started |       |
+| HTTP client        | Done        |       |
 | Execute (writes)   | Not started |       |
 | Query (reads)      | Not started |       |
 | Batch operations   | Not started |       |
@@ -136,13 +137,13 @@ Acceptance: All types compile, unit tests verify `isError()` narrows correctly.
 
 ### HTTP Client Foundation
 
-- [ ] `RqliteClient` class with connection management
-- [ ] Factory function `createRqliteClient()`
-- [ ] Native fetch wrapper with timeout support
-- [ ] Request/response JSON serialisation
-- [ ] Basic authentication header generation
-- [ ] TLS/HTTPS support via native fetch
-- [ ] Error response parsing and mapping
+- [x] `RqliteClient` class with connection management
+- [x] Factory function `createRqliteClient()`
+- [x] Native fetch wrapper with timeout support
+- [x] Request/response JSON serialisation
+- [x] Basic authentication header generation
+- [x] TLS/HTTPS support via native fetch
+- [x] Error response parsing and mapping
 
 Acceptance: Can connect to rqlite and receive status response; auth works; errors are typed.
 

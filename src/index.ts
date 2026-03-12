@@ -15,6 +15,9 @@ export { err, isErr, isOk, ok } from "./result.js"
 // Errors
 export { AuthenticationError, ConnectionError, QueryError, RqliteError } from "./errors.js"
 
+// Client
+export { createRqliteClient, RqliteClient } from "./client.js"
+
 // Types
 export type {
   ConsistencyLevel,
