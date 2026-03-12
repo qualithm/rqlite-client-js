@@ -82,6 +82,22 @@ export type ExecuteOptions = {
 }
 
 // =============================================================================
+// Query Options
+// =============================================================================
+
+/** Options for query (read) operations. */
+export type QueryOptions = {
+  /** Read consistency level (overrides client default). */
+  level?: ConsistencyLevel
+  /** Freshness options for stale reads (only applies with `none` consistency). */
+  freshness?: FreshnessOptions
+  /** Return results as associative objects (column name → value) instead of arrays. */
+  associative?: boolean
+  /** Request timeout in milliseconds (overrides client default). */
+  timeout?: number
+}
+
+// =============================================================================
 // Query Results
 // =============================================================================
 

@@ -7,7 +7,15 @@
 
 import { AuthenticationError, ConnectionError, QueryError } from "./errors.js"
 import { err, ok, type Result } from "./result.js"
-import type { ExecuteOptions, ExecuteResult, RqliteAuth, RqliteConfig, SqlValue } from "./types.js"
+import type {
+  ExecuteOptions,
+  ExecuteResult,
+  QueryOptions,
+  QueryResult,
+  RqliteAuth,
+  RqliteConfig,
+  SqlValue
+} from "./types.js"
 
 // =============================================================================
 // Internal Types
@@ -34,12 +42,14 @@ export class RqliteClient {
   private readonly baseUrl: string
   private readonly authHeader: string | undefined
   private readonly defaultTimeout: number
+  private readonly config: RqliteConfig
 
   constructor(config: RqliteConfig) {
     const scheme = config.tls === true ? "https" : "http"
     this.baseUrl = `${scheme}://${config.host}`
     this.authHeader = config.auth ? encodeBasicAuth(config.auth) : undefined
     this.defaultTimeout = config.timeout ?? 10_000
+    this.config = config
   }
 
   /** Send a GET request and parse the JSON response. */
@@ -105,6 +115,60 @@ export class RqliteClient {
       return result
     }
     return parseExecuteResponse(result.value)
+  }
+
+  /**
+   * Execute a single SQL query (read).
+   *
+   * @example
+   * ```ts
+   * // Simple query
+   * const result = await client.query("SELECT * FROM foo")
+   *
+   * // Parameterised query
+   * const result = await client.query("SELECT * FROM foo WHERE id = ?", [1])
+   *
+   * // With consistency level
+   * const result = await client.query("SELECT * FROM foo", undefined, { level: "strong" })
+   * ```
+   */
+  async query(
+    sql: string,
+    params?: SqlValue[],
+    options?: QueryOptions
+  ): Promise<Result<QueryResult, RqliteError>> {
+    const statement = params !== undefined ? [sql, ...params] : [sql]
+    const result = await this.queryBatch([statement], options)
+    if (!result.ok) {
+      return result
+    }
+    if (result.value.length === 0) {
+      return err(new ConnectionError("empty query response"))
+    }
+    return ok(result.value[0])
+  }
+
+  /**
+   * Execute multiple SQL queries in a single request.
+   *
+   * @example
+   * ```ts
+   * const results = await client.queryBatch([
+   *   ["SELECT * FROM foo WHERE id = ?", 1],
+   *   ["SELECT COUNT(*) FROM foo"],
+   * ])
+   * ```
+   */
+  async queryBatch(
+    statements: unknown[],
+    options?: QueryOptions
+  ): Promise<Result<QueryResult[], RqliteError>> {
+    const queryParams = buildQueryParams(options, this.config)
+    const result = await this.post<RqliteQueryResponse>("/db/query", statements, queryParams)
+    if (!result.ok) {
+      return result
+    }
+    return parseQueryResponse(result.value)
   }
 
   /** Build the full URL for a request. */
@@ -275,6 +339,72 @@ function parseExecuteResponse(raw: RqliteExecuteResponse): Result<ExecuteResult[
     results.push({
       lastInsertId: item.last_insert_id ?? 0,
       rowsAffected: item.rows_affected ?? 0,
+      time: item.time ?? 0
+    })
+  }
+  return ok(results)
+}
+
+// =============================================================================
+// Query Response Parsing
+// =============================================================================
+
+/** Raw rqlite query endpoint response. */
+type RqliteQueryResponse = {
+  results?: RqliteQueryResultItem[]
+}
+
+/** A single result item from rqlite's query response. */
+type RqliteQueryResultItem = {
+  columns?: string[]
+  types?: string[]
+  values?: SqlValue[][]
+  time?: number
+  error?: string
+}
+
+/** Build query parameters for query requests. */
+function buildQueryParams(
+  options: QueryOptions | undefined,
+  config: RqliteConfig
+): Record<string, string> | undefined {
+  const level = options?.level ?? config.consistencyLevel
+  const freshness = options?.freshness ?? config.freshness
+  const associative = options?.associative
+
+  const params: Record<string, string> = {}
+
+  if (level !== undefined) {
+    params.level = level
+  }
+  if (freshness !== undefined) {
+    params.freshness = freshness.freshness
+    if (freshness.freshnessStrict === true) {
+      params.freshness_strict = ""
+    }
+  }
+  if (associative === true) {
+    params.associative = ""
+  }
+
+  return Object.keys(params).length > 0 ? params : undefined
+}
+
+/** Parse the raw rqlite query response into typed results. */
+function parseQueryResponse(raw: RqliteQueryResponse): Result<QueryResult[], RqliteError> {
+  if (raw.results === undefined) {
+    return err(new ConnectionError("missing results in query response"))
+  }
+
+  const results: QueryResult[] = []
+  for (const item of raw.results) {
+    if (item.error !== undefined) {
+      return err(new QueryError(item.error))
+    }
+    results.push({
+      columns: item.columns ?? [],
+      types: item.types ?? [],
+      values: item.values ?? [],
       time: item.time ?? 0
     })
   }

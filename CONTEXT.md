@@ -64,7 +64,7 @@ and SQLite internals.
 | Core types         | Done        |       |
 | HTTP client        | Done        |       |
 | Execute (writes)   | Done        |       |
-| Query (reads)      | Not started |       |
+| Query (reads)      | Done        |       |
 | Batch operations   | Not started |       |
 | Transactions       | Not started |       |
 | Parameterised SQL  | Not started |       |
@@ -162,13 +162,13 @@ commit/rollback correctly.
 
 ### Query Operations (Reads)
 
-- [ ] `query(sql)` — single query execution
-- [ ] `query(sql, params)` — parameterised query
-- [ ] `queryBatch(statements)` — multiple queries in one request
-- [ ] Consistency level option (none, weak, strong)
-- [ ] Freshness option for stale reads
-- [ ] Associative result format option
-- [ ] Parse `query` response into `QueryResult`
+- [x] `query(sql)` — single query execution
+- [x] `query(sql, params)` — parameterised query
+- [x] `queryBatch(statements)` — multiple queries in one request
+- [x] Consistency level option (none, weak, strong)
+- [x] Freshness option for stale reads
+- [x] Associative result format option
+- [x] Parse `query` response into `QueryResult`
 
 Acceptance: Can SELECT with params; consistency levels affect behaviour; results are correctly
 typed.
