@@ -70,8 +70,9 @@ describe("SQL parameterisation properties", () => {
       await fc.assert(
         fc.asyncProperty(
           fc.oneof(
-            fc.integer(),
-            fc.double({ noNaN: true, noDefaultInfinity: true }),
+            // JSON.stringify(-0) === "0", so exclude -0 from all generators
+            fc.integer().filter((v) => !Object.is(v, -0)),
+            fc.double({ noNaN: true, noDefaultInfinity: true }).filter((v) => !Object.is(v, -0)),
             fc.constant(0),
             fc.constant(Number.MAX_SAFE_INTEGER),
             fc.constant(Number.MIN_SAFE_INTEGER)
