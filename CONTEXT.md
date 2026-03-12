@@ -63,7 +63,7 @@ and SQLite internals.
 | ------------------ | ----------- | ----- |
 | Core types         | Done        |       |
 | HTTP client        | Done        |       |
-| Execute (writes)   | Not started |       |
+| Execute (writes)   | Done        |       |
 | Query (reads)      | Not started |       |
 | Batch operations   | Not started |       |
 | Transactions       | Not started |       |
@@ -149,13 +149,13 @@ Acceptance: Can connect to rqlite and receive status response; auth works; error
 
 ### Execute Operations (Writes)
 
-- [ ] `execute(sql)` — single statement execution
-- [ ] `execute(sql, params)` — parameterised execution
-- [ ] `executeBatch(statements)` — multiple statements in one request
-- [ ] Transaction support via `transaction` flag
-- [ ] Queue mode support (write to leader queue)
-- [ ] Wait mode support (wait for write to be applied)
-- [ ] Parse `execute` response into `ExecuteResult`
+- [x] `execute(sql)` — single statement execution
+- [x] `execute(sql, params)` — parameterised execution
+- [x] `executeBatch(statements)` — multiple statements in one request
+- [x] Transaction support via `transaction` flag
+- [x] Queue mode support (write to leader queue)
+- [x] Wait mode support (wait for write to be applied)
+- [x] Parse `execute` response into `ExecuteResult`
 
 Acceptance: Can INSERT/UPDATE/DELETE with params; batch operations work; transactions
 commit/rollback correctly.

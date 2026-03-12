@@ -5,9 +5,9 @@
  * and error mapping. Higher-level operations (execute, query) are built on top.
  */
 
-import { AuthenticationError, ConnectionError } from "./errors.js"
+import { AuthenticationError, ConnectionError, QueryError } from "./errors.js"
 import { err, ok, type Result } from "./result.js"
-import type { RqliteAuth, RqliteConfig } from "./types.js"
+import type { ExecuteOptions, ExecuteResult, RqliteAuth, RqliteConfig, SqlValue } from "./types.js"
 
 // =============================================================================
 // Internal Types
@@ -54,6 +54,57 @@ export class RqliteClient {
     params?: Record<string, string>
   ): Promise<Result<T, RqliteError>> {
     return this.request<T>({ method: "POST", path, body, params })
+  }
+
+  /**
+   * Execute a single SQL write statement.
+   *
+   * @example
+   * ```ts
+   * // Simple statement
+   * const result = await client.execute("CREATE TABLE foo (id INTEGER PRIMARY KEY, name TEXT)")
+   *
+   * // Parameterised statement
+   * const result = await client.execute("INSERT INTO foo VALUES(?, ?)", [1, "bar"])
+   * ```
+   */
+  async execute(
+    sql: string,
+    params?: SqlValue[],
+    options?: ExecuteOptions
+  ): Promise<Result<ExecuteResult, RqliteError>> {
+    const statement = params !== undefined ? [sql, ...params] : [sql]
+    const result = await this.executeBatch([statement], options)
+    if (!result.ok) {
+      return result
+    }
+    if (result.value.length === 0) {
+      return err(new ConnectionError("empty execute response"))
+    }
+    return ok(result.value[0])
+  }
+
+  /**
+   * Execute multiple SQL write statements in a single request.
+   *
+   * @example
+   * ```ts
+   * const results = await client.executeBatch([
+   *   ["INSERT INTO foo VALUES(?, ?)", 1, "bar"],
+   *   ["INSERT INTO foo VALUES(?, ?)", 2, "baz"],
+   * ], { transaction: true })
+   * ```
+   */
+  async executeBatch(
+    statements: unknown[],
+    options?: ExecuteOptions
+  ): Promise<Result<ExecuteResult[], RqliteError>> {
+    const params = buildExecuteParams(options)
+    const result = await this.post<RqliteExecuteResponse>("/db/execute", statements, params)
+    if (!result.ok) {
+      return result
+    }
+    return parseExecuteResponse(result.value)
   }
 
   /** Build the full URL for a request. */
@@ -116,7 +167,7 @@ export function createRqliteClient(config: RqliteConfig): RqliteClient {
 // Internal Helpers
 // =============================================================================
 
-type RqliteError = ConnectionError | AuthenticationError
+type RqliteError = ConnectionError | AuthenticationError | QueryError
 
 /** Encode basic auth credentials as a header value. */
 function encodeBasicAuth(auth: RqliteAuth): string {
@@ -172,4 +223,60 @@ function mapFetchError(error: unknown, url: string): ConnectionError {
     url,
     cause: error instanceof Error ? error : undefined
   })
+}
+
+// =============================================================================
+// Execute Response Parsing
+// =============================================================================
+
+/** Raw rqlite execute endpoint response. */
+type RqliteExecuteResponse = {
+  results?: RqliteExecuteResultItem[]
+}
+
+/** A single result item from rqlite's execute response. */
+type RqliteExecuteResultItem = {
+  last_insert_id?: number
+  rows_affected?: number
+  time?: number
+  error?: string
+}
+
+/** Build query parameters for execute requests. */
+function buildExecuteParams(options?: ExecuteOptions): Record<string, string> | undefined {
+  if (options === undefined) {
+    return undefined
+  }
+
+  const params: Record<string, string> = {}
+  if (options.transaction === true) {
+    params.transaction = ""
+  }
+  if (options.queue === true) {
+    params.queue = ""
+  }
+  if (options.wait === true) {
+    params.wait = ""
+  }
+  return Object.keys(params).length > 0 ? params : undefined
+}
+
+/** Parse the raw rqlite execute response into typed results. */
+function parseExecuteResponse(raw: RqliteExecuteResponse): Result<ExecuteResult[], RqliteError> {
+  if (raw.results === undefined) {
+    return err(new ConnectionError("missing results in execute response"))
+  }
+
+  const results: ExecuteResult[] = []
+  for (const item of raw.results) {
+    if (item.error !== undefined) {
+      return err(new QueryError(item.error))
+    }
+    results.push({
+      lastInsertId: item.last_insert_id ?? 0,
+      rowsAffected: item.rows_affected ?? 0,
+      time: item.time ?? 0
+    })
+  }
+  return ok(results)
 }

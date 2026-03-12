@@ -66,6 +66,22 @@ export type SqlStatement = {
 }
 
 // =============================================================================
+// Execute Options
+// =============================================================================
+
+/** Options for execute (write) operations. */
+export type ExecuteOptions = {
+  /** Wrap all statements in a transaction. */
+  transaction?: boolean
+  /** Queue the write on the leader (returns immediately). */
+  queue?: boolean
+  /** Wait for queued write to be applied before returning. */
+  wait?: boolean
+  /** Request timeout in milliseconds (overrides client default). */
+  timeout?: number
+}
+
+// =============================================================================
 // Query Results
 // =============================================================================
 
