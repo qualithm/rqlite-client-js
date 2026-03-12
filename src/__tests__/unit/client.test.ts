@@ -190,7 +190,7 @@ describe("RqliteClient", () => {
 
     it("returns ConnectionError on network error", async () => {
       vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")))
-      const client = new RqliteClient({ host: "localhost:4001" })
+      const client = new RqliteClient({ host: "localhost:4001", maxRetries: 0 })
 
       const result = await client.get("/status")
 
@@ -212,7 +212,7 @@ describe("RqliteClient", () => {
           })
         })
       )
-      const client = new RqliteClient({ host: "localhost:4001", timeout: 100 })
+      const client = new RqliteClient({ host: "localhost:4001", timeout: 100, maxRetries: 0 })
 
       const resultPromise = client.get("/status")
       await vi.advanceTimersByTimeAsync(150)
@@ -269,7 +269,7 @@ describe("RqliteClient", () => {
           })
         })
       )
-      const client = new RqliteClient({ host: "localhost:4001", timeout: 50 })
+      const client = new RqliteClient({ host: "localhost:4001", timeout: 50, maxRetries: 0 })
 
       const resultPromise = client.get("/status")
       await vi.advanceTimersByTimeAsync(60)

@@ -49,13 +49,13 @@ and SQLite internals.
 
 ### Modules
 
-| Name        | Purpose                                                                                |
-| ----------- | -------------------------------------------------------------------------------------- |
-| `index.ts`  | Main entry point and public API re-exports                                             |
-| `result.ts` | `Result<T, E>` discriminated union with `ok`/`err` helpers                             |
-| `errors.ts` | Error hierarchy: `RqliteError`, `ConnectionError`, `QueryError`, `AuthenticationError` |
-| `types.ts`  | Domain types: config, SQL values, query/execute results, consistency levels            |
-| `client.ts` | `RqliteClient` class with fetch wrapper, timeout, auth, error mapping                  |
+| Name        | Purpose                                                                                       |
+| ----------- | --------------------------------------------------------------------------------------------- |
+| `index.ts`  | Main entry point and public API re-exports                                                    |
+| `result.ts` | `Result<T, E>` discriminated union with `ok`/`err` helpers                                    |
+| `errors.ts` | Error hierarchy: `RqliteError`, `ConnectionError`, `QueryError`, `AuthenticationError`        |
+| `types.ts`  | Domain types: config, SQL values, query/execute results, consistency levels                   |
+| `client.ts` | `RqliteClient` class with fetch wrapper, timeout, auth, error mapping, leader redirect, retry |
 
 ### Features
 
@@ -69,7 +69,7 @@ and SQLite internals.
 | Transactions       | Not started |       |
 | Parameterised SQL  | Not started |       |
 | Consistency levels | Not started |       |
-| Leader redirect    | Not started |       |
+| Leader redirect    | Done        |       |
 | Authentication     | Not started |       |
 | Cluster status     | Not started |       |
 | Cross-runtime      | Not started |       |
@@ -98,7 +98,7 @@ and SQLite internals.
 | ID   | Question                                   | Context                                                                |
 | ---- | ------------------------------------------ | ---------------------------------------------------------------------- |
 | OD-1 | Associative vs array result format default | rqlite supports both; associative is more ergonomic, arrays are faster |
-| OD-2 | Automatic leader discovery                 | Follow redirects automatically vs return redirect info to caller       |
+| OD-2 | ~~Automatic leader discovery~~             | Resolved: follow redirects by default with configurable opt-out        |
 
 ### Risks
 
@@ -184,11 +184,11 @@ Acceptance: Single API can handle mixed workloads; correctly routes to appropria
 
 ### Leader Handling
 
-- [ ] Detect leader redirect responses (HTTP 301/307)
-- [ ] Automatic redirect following option
-- [ ] Leader discovery via status endpoint
-- [ ] Retry logic with exponential backoff
-- [ ] Configurable max retries
+- [x] Detect leader redirect responses (HTTP 301/307)
+- [x] Automatic redirect following option
+- [x] Leader discovery via status endpoint
+- [x] Retry logic with exponential backoff
+- [x] Configurable max retries
 
 Acceptance: Client follows leader changes transparently; retries recover from transient failures.
 

@@ -39,12 +39,21 @@ type RequestOptions = {
 // RqliteClient
 // =============================================================================
 
+/** Default maximum number of redirect/retry attempts. */
+const DEFAULT_MAX_RETRIES = 3
+
+/** Default base delay in milliseconds for exponential backoff. */
+const DEFAULT_RETRY_BASE_DELAY = 100
+
 /** rqlite HTTP client with connection management and authentication. */
 export class RqliteClient {
   private readonly baseUrl: string
   private readonly authHeader: string | undefined
   private readonly defaultTimeout: number
   private readonly config: RqliteConfig
+  private readonly followRedirects: boolean
+  private readonly maxRetries: number
+  private readonly retryBaseDelay: number
 
   constructor(config: RqliteConfig) {
     const scheme = config.tls === true ? "https" : "http"
@@ -52,6 +61,9 @@ export class RqliteClient {
     this.authHeader = config.auth ? encodeBasicAuth(config.auth) : undefined
     this.defaultTimeout = config.timeout ?? 10_000
     this.config = config
+    this.followRedirects = config.followRedirects ?? true
+    this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES
+    this.retryBaseDelay = config.retryBaseDelay ?? DEFAULT_RETRY_BASE_DELAY
   }
 
   /** Send a GET request and parse the JSON response. */
@@ -218,10 +230,10 @@ export class RqliteClient {
     return url.toString()
   }
 
-  /** Execute an HTTP request against rqlite. */
+  /** Execute an HTTP request against rqlite with redirect following and retry. */
   private async request<T>(options: RequestOptions): Promise<Result<T, RqliteError>> {
     const timeout = options.timeout ?? this.defaultTimeout
-    const url = this.buildUrl(options.path, options.params)
+    let url = this.buildUrl(options.path, options.params)
 
     const headers: Record<string, string> = {}
     if (this.authHeader !== undefined) {
@@ -231,26 +243,47 @@ export class RqliteClient {
       headers["Content-Type"] = "application/json"
     }
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => {
-      controller.abort()
-    }, timeout)
+    const bodyStr = options.body !== undefined ? JSON.stringify(options.body) : undefined
+    let lastError: RqliteError | undefined
 
-    try {
-      const response = await fetch(url, {
-        method: options.method,
-        headers,
-        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-        signal: controller.signal,
-        redirect: "manual"
-      })
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      if (attempt > 0 && lastError !== undefined) {
+        await sleep(this.retryBaseDelay * 2 ** (attempt - 1))
+      }
 
-      return await handleResponse<T>(response, url)
-    } catch (error) {
-      return err(mapFetchError(error, url))
-    } finally {
-      clearTimeout(timeoutId)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        controller.abort()
+      }, timeout)
+
+      try {
+        const response = await fetch(url, {
+          method: options.method,
+          headers,
+          body: bodyStr,
+          signal: controller.signal,
+          redirect: "manual"
+        })
+
+        // Handle leader redirects (301/307)
+        if ((response.status === 301 || response.status === 307) && this.followRedirects) {
+          const location = response.headers.get("Location")
+          if (location !== null) {
+            url = location
+            lastError = new ConnectionError("leader redirect", { url })
+            continue
+          }
+        }
+
+        return await handleResponse<T>(response, url)
+      } catch (error) {
+        lastError = mapFetchError(error, url)
+      } finally {
+        clearTimeout(timeoutId)
+      }
     }
+
+    return err(lastError ?? new ConnectionError("max retries exceeded", { url }))
   }
 }
 
@@ -275,6 +308,13 @@ function encodeBasicAuth(auth: RqliteAuth): string {
   return `Basic ${btoa(credentials)}`
 }
 
+/** Sleep for the given number of milliseconds. */
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
 /** Handle a fetch Response and map to Result. */
 async function handleResponse<T>(response: Response, url: string): Promise<Result<T, RqliteError>> {
   if (response.status === 401) {
@@ -285,7 +325,7 @@ async function handleResponse<T>(response: Response, url: string): Promise<Resul
     return err(new AuthenticationError("forbidden"))
   }
 
-  if (!response.ok && response.status !== 301 && response.status !== 307) {
+  if (!response.ok) {
     const text = await response.text().catch(() => "")
     return err(
       new ConnectionError(
