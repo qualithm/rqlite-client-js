@@ -49,16 +49,18 @@ and SQLite internals.
 
 ### Modules
 
-| Name       | Purpose          |
-| ---------- | ---------------- |
-| `index.ts` | Main entry point |
-| `greet.ts` | Greeting utility |
+| Name        | Purpose                                                                                |
+| ----------- | -------------------------------------------------------------------------------------- |
+| `index.ts`  | Main entry point and public API re-exports                                             |
+| `result.ts` | `Result<T, E>` discriminated union with `ok`/`err` helpers                             |
+| `errors.ts` | Error hierarchy: `RqliteError`, `ConnectionError`, `QueryError`, `AuthenticationError` |
+| `types.ts`  | Domain types: config, SQL values, query/execute results, consistency levels            |
 
 ### Features
 
 | Feature            | Status      | Notes |
 | ------------------ | ----------- | ----- |
-| Core types         | Not started |       |
+| Core types         | Done        |       |
 | HTTP client        | Not started |       |
 | Execute (writes)   | Not started |       |
 | Query (reads)      | Not started |       |
@@ -120,15 +122,15 @@ and SQLite internals.
 
 ### Core Types
 
-- [ ] Define `Result<T, E>` — shape: `{ ok: true; value: T }` | `{ ok: false; error: E }`
-- [ ] Define error hierarchy: `RqliteError` base, `ConnectionError`, `QueryError`,
+- [x] Define `Result<T, E>` — shape: `{ ok: true; value: T }` | `{ ok: false; error: E }`
+- [x] Define error hierarchy: `RqliteError` base, `ConnectionError`, `QueryError`,
       `AuthenticationError`
-- [ ] Error classes with static `isError()` helpers for type narrowing
-- [ ] Define `RqliteConfig` — host, port, auth, TLS options, timeout, consistency level defaults
-- [ ] Define `QueryResult` — columns, types, values, time, rows affected
-- [ ] Define `ExecuteResult` — last insert ID, rows affected, time
-- [ ] Define consistency levels: `none`, `weak`, `strong`
-- [ ] Define freshness options for stale reads
+- [x] Error classes with static `isError()` helpers for type narrowing
+- [x] Define `RqliteConfig` — host, port, auth, TLS options, timeout, consistency level defaults
+- [x] Define `QueryResult` — columns, types, values, time, rows affected
+- [x] Define `ExecuteResult` — last insert ID, rows affected, time
+- [x] Define consistency levels: `none`, `weak`, `strong`
+- [x] Define freshness options for stale reads
 
 Acceptance: All types compile, unit tests verify `isError()` narrows correctly.
 
