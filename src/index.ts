@@ -20,12 +20,14 @@ export { createRqliteClient, RqliteClient } from "./client.js"
 
 // Types
 export type {
+  ClusterNode,
   ConsistencyLevel,
   ExecuteOptions,
   ExecuteResult,
   FreshnessOptions,
   QueryOptions,
   QueryResult,
+  ReadyResult,
   RequestOptions,
   RequestResult,
   RqliteAuth,

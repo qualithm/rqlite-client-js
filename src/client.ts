@@ -8,10 +8,12 @@
 import { AuthenticationError, ConnectionError, QueryError } from "./errors.js"
 import { err, ok, type Result } from "./result.js"
 import type {
+  ClusterNode,
   ExecuteOptions,
   ExecuteResult,
   QueryOptions,
   QueryResult,
+  ReadyResult,
   RequestOptions as RequestOpts,
   RequestResult,
   RqliteAuth,
@@ -219,6 +221,73 @@ export class RqliteClient {
     return parseRequestResponse(result.value, statements)
   }
 
+  /**
+   * Get the status of the connected rqlite node.
+   *
+   * Returns the full status object from the `/status` endpoint. The structure
+   * varies by rqlite version; fields are not strictly typed.
+   *
+   * @example
+   * ```ts
+   * const result = await client.status()
+   * if (result.ok) console.log(result.value)
+   * ```
+   */
+  async status(): Promise<Result<Record<string, unknown>, RqliteError>> {
+    return this.get<Record<string, unknown>>("/status")
+  }
+
+  /**
+   * Check if the connected rqlite node is ready to accept requests.
+   *
+   * Calls the `/readyz` endpoint which returns HTTP 200 if the node is ready,
+   * or HTTP 503 if not. The `noleader` query parameter allows checking readiness
+   * without requiring a leader.
+   *
+   * @example
+   * ```ts
+   * const result = await client.ready()
+   * if (result.ok && result.value.ready) {
+   *   console.log("node is ready, leader:", result.value.isLeader)
+   * }
+   * ```
+   */
+  async ready(options?: { noleader?: boolean }): Promise<Result<ReadyResult, RqliteError>> {
+    const params: Record<string, string> = {}
+    if (options?.noleader === true) {
+      params.noleader = ""
+    }
+    return this.requestText("/readyz", params)
+  }
+
+  /**
+   * List all nodes in the rqlite cluster.
+   *
+   * Calls the `/nodes` endpoint and returns typed node information including
+   * leader status and reachability.
+   *
+   * @example
+   * ```ts
+   * const result = await client.nodes()
+   * if (result.ok) {
+   *   for (const node of result.value) {
+   *     console.log(node.id, node.leader ? "(leader)" : "")
+   *   }
+   * }
+   * ```
+   */
+  async nodes(options?: { nonvoters?: boolean }): Promise<Result<ClusterNode[], RqliteError>> {
+    const params: Record<string, string> = {}
+    if (options?.nonvoters === true) {
+      params.nonvoters = ""
+    }
+    const result = await this.get<RqliteNodesResponse>("/nodes", params)
+    if (!result.ok) {
+      return result
+    }
+    return ok(parseNodesResponse(result.value))
+  }
+
   /** Build the full URL for a request. */
   private buildUrl(path: string, params?: Record<string, string>): string {
     const url = new URL(path, this.baseUrl)
@@ -284,6 +353,56 @@ export class RqliteClient {
     }
 
     return err(lastError ?? new ConnectionError("max retries exceeded", { url }))
+  }
+
+  /**
+   * Send a GET request to a text endpoint (e.g. `/readyz`) and parse the ready state.
+   *
+   * Unlike `request()`, this treats HTTP 503 as a valid "not ready" response
+   * rather than an error.
+   */
+  private async requestText(
+    path: string,
+    params?: Record<string, string>
+  ): Promise<Result<ReadyResult, RqliteError>> {
+    const timeout = this.defaultTimeout
+    const url = this.buildUrl(path, params)
+
+    const headers: Record<string, string> = {}
+    if (this.authHeader !== undefined) {
+      headers.Authorization = this.authHeader
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => {
+      controller.abort()
+    }, timeout)
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers,
+        signal: controller.signal
+      })
+
+      if (response.status === 401) {
+        return err(new AuthenticationError("unauthorised"))
+      }
+
+      if (response.status === 403) {
+        return err(new AuthenticationError("forbidden"))
+      }
+
+      const body = await response.text()
+      const ready = response.status === 200
+      const isLeader = body.includes("[Leader]")
+
+      return ok({ ready, isLeader })
+    } catch (error) {
+      return err(mapFetchError(error, url))
+    } finally {
+      clearTimeout(timeoutId)
+    }
   }
 }
 
@@ -589,4 +708,33 @@ function parseRequestResponse(
     }
   }
   return ok(results)
+}
+
+// =============================================================================
+// Nodes Response Parsing
+// =============================================================================
+
+/** Raw node object from rqlite's `/nodes` endpoint. */
+type RqliteNodeItem = {
+  id: string
+  api_addr: string
+  addr: string
+  leader: boolean
+  reachable: boolean
+  time?: number
+}
+
+/** Raw response from rqlite's `/nodes` endpoint. */
+type RqliteNodesResponse = Record<string, RqliteNodeItem>
+
+/** Map raw nodes response to typed ClusterNode array. */
+function parseNodesResponse(raw: RqliteNodesResponse): ClusterNode[] {
+  return Object.values(raw).map((node) => ({
+    id: node.id,
+    apiAddr: node.api_addr,
+    addr: node.addr,
+    leader: node.leader,
+    reachable: node.reachable,
+    time: node.time
+  }))
 }

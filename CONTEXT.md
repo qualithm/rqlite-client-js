@@ -71,7 +71,7 @@ and SQLite internals.
 | Consistency levels | Not started |       |
 | Leader redirect    | Done        |       |
 | Authentication     | Not started |       |
-| Cluster status     | Not started |       |
+| Cluster status     | Done        |       |
 | Cross-runtime      | Not started |       |
 
 ---
@@ -194,10 +194,10 @@ Acceptance: Client follows leader changes transparently; retries recover from tr
 
 ### Cluster Status
 
-- [ ] `status()` — get node status
-- [ ] `ready()` — check if node is ready
-- [ ] `nodes()` — list cluster nodes
-- [ ] Parse status response into typed structs
+- [x] `status()` — get node status
+- [x] `ready()` — check if node is ready
+- [x] `nodes()` — list cluster nodes
+- [x] Parse status response into typed structs
 
 Acceptance: Can inspect cluster state; health checks work.
 

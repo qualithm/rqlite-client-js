@@ -159,3 +159,31 @@ export type ExecuteResult = {
   /** Server-reported execution time in seconds. */
   time: number
 }
+
+// =============================================================================
+// Cluster Status
+// =============================================================================
+
+/** A node in the rqlite cluster as returned by the `/nodes` endpoint. */
+export type ClusterNode = {
+  /** Raft node ID. */
+  id: string
+  /** HTTP API address (e.g. `"http://localhost:4001"`). */
+  apiAddr: string
+  /** Raft communication address (e.g. `"localhost:4002"`). */
+  addr: string
+  /** Whether this node is the current leader. */
+  leader: boolean
+  /** Whether this node is reachable. */
+  reachable: boolean
+  /** Round-trip time to this node in seconds, if available. */
+  time?: number
+}
+
+/** Readiness check result from the `/readyz` endpoint. */
+export type ReadyResult = {
+  /** Whether the node is ready to accept requests. */
+  ready: boolean
+  /** Whether the node is the leader. */
+  isLeader: boolean
+}
