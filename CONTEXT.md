@@ -110,11 +110,11 @@ and SQLite internals.
 
 ### Risks
 
-| ID  | Risk                             | Impact | Mitigation                                                                            |
-| --- | -------------------------------- | ------ | ------------------------------------------------------------------------------------- |
-| R-1 | rqlite API versioning            | Medium | `serverVersion()` method; README compatibility table; docker-compose version env var  |
-| R-2 | Leader election during requests  | Medium | Jittered exponential backoff; separate redirect and retry budgets; `maxRedirects` opt |
-| R-3 | Large result set memory pressure | Medium | Streaming support in future; document batch size recommendations                      |
+| ID  | Risk                             | Impact | Mitigation                                                                                              |
+| --- | -------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| R-1 | rqlite API versioning            | Medium | `serverVersion()` method; README compatibility table; docker-compose version env var                    |
+| R-2 | Leader election during requests  | Medium | Jittered exponential backoff; separate redirect and retry budgets; `maxRedirects` opt                   |
+| R-3 | Large result set memory pressure | Medium | `queryPaginated()` async generator fetches in bounded-memory pages; document batch size recommendations |
 
 ---
 
