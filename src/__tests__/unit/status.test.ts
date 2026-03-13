@@ -211,7 +211,7 @@ describe("Cluster Status", () => {
 
     it("returns ConnectionError on network error", async () => {
       vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")))
-      const client = new RqliteClient({ host: "localhost:4001" })
+      const client = new RqliteClient({ host: "localhost:4001", maxRetries: 0 })
 
       const result = await client.ready()
 
@@ -266,7 +266,7 @@ describe("Cluster Status", () => {
           })
         })
       )
-      const client = new RqliteClient({ host: "localhost:4001", timeout: 50 })
+      const client = new RqliteClient({ host: "localhost:4001", timeout: 50, maxRetries: 0 })
 
       const resultPromise = client.ready()
       await vi.advanceTimersByTimeAsync(60)

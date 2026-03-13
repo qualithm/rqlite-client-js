@@ -49,13 +49,13 @@ and SQLite internals.
 
 ### Modules
 
-| Name        | Purpose                                                                                       |
-| ----------- | --------------------------------------------------------------------------------------------- |
-| `index.ts`  | Main entry point and public API re-exports                                                    |
-| `result.ts` | `Result<T, E>` discriminated union with `ok`/`err` helpers                                    |
-| `errors.ts` | Error hierarchy: `RqliteError`, `ConnectionError`, `QueryError`, `AuthenticationError`        |
-| `types.ts`  | Domain types: config, SQL values, query/execute results, consistency levels                   |
-| `client.ts` | `RqliteClient` class with fetch wrapper, timeout, auth, error mapping, leader redirect, retry |
+| Name        | Purpose                                                                                                              |
+| ----------- | -------------------------------------------------------------------------------------------------------------------- |
+| `index.ts`  | Main entry point and public API re-exports                                                                           |
+| `result.ts` | `Result<T, E>` discriminated union with `ok`/`err` helpers                                                           |
+| `errors.ts` | Error hierarchy: `RqliteError`, `ConnectionError`, `QueryError`, `AuthenticationError`                               |
+| `types.ts`  | Domain types: config, SQL values, query/execute results, consistency levels                                          |
+| `client.ts` | `RqliteClient` class with fetch wrapper, timeout, auth, error mapping, leader redirect, retry, abort signal, destroy |
 
 ### Features
 
@@ -73,9 +73,12 @@ and SQLite internals.
 | Consistency levels | `none`, `weak`, `strong` with freshness options                               |
 | Leader redirect    | Automatic 301/307 following with separate redirect budget                     |
 | Retry with backoff | Jittered exponential backoff, separate retry and redirect budgets             |
-| Authentication     | HTTP basic auth header generation                                             |
+| Authentication     | HTTP basic auth with UTF-8-safe encoding                                      |
 | TLS                | HTTPS via native fetch                                                        |
 | Cluster status     | Status, readiness, node listing, server version                               |
+| Abort signal       | User-supplied `AbortSignal` threaded through all operations                   |
+| Redirect safety    | URL scheme validation on leader redirects (SSRF mitigation)                   |
+| Client lifecycle   | `destroy()` method aborts in-flight requests and prevents new ones            |
 | API documentation  | TypeDoc with zero warnings                                                    |
 | Examples           | Six runnable examples covering all major features                             |
 
@@ -255,6 +258,16 @@ Acceptance: No template references remain; package metadata is correct.
 Acceptance:
 `for await (const page of client.queryPaginated("SELECT * FROM large_table", [], { pageSize: 100 }))`
 iterates all rows in bounded-memory pages. Zero new runtime dependencies.
+
+### Hardening
+
+- [x] User-supplied `AbortSignal` — thread optional signal through all public methods
+- [x] Redirect URL validation — validate `Location` header scheme before following redirects
+- [x] UTF-8 basic auth encoding — use `TextEncoder` for non-ASCII credential support
+- [x] `requestText()` retry/redirect — apply retry and redirect logic to text endpoints (`ready()`)
+- [x] Client `destroy()` method — abort in-flight requests, reject new requests after disposal
+
+Acceptance: 27 hardening tests pass; typecheck and lint clean; all 253 tests pass.
 
 ---
 

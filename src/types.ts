@@ -87,6 +87,8 @@ export type ExecuteOptions = {
   wait?: boolean
   /** Request timeout in milliseconds (overrides client default). */
   timeout?: number
+  /** Abort signal to cancel the request. */
+  signal?: AbortSignal
 }
 
 // =============================================================================
@@ -103,6 +105,8 @@ export type QueryOptions = {
   associative?: boolean
   /** Request timeout in milliseconds (overrides client default). */
   timeout?: number
+  /** Abort signal to cancel the request. */
+  signal?: AbortSignal
 }
 
 // =============================================================================
@@ -119,6 +123,8 @@ export type RequestOptions = {
   freshness?: FreshnessOptions
   /** Request timeout in milliseconds (overrides client default). */
   timeout?: number
+  /** Abort signal to cancel the request. */
+  signal?: AbortSignal
 }
 
 // =============================================================================

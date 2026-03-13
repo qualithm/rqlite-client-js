@@ -37,6 +37,7 @@ type RequestOptions = {
   body?: unknown
   params?: Record<string, string>
   timeout?: number
+  signal?: AbortSignal
 }
 
 // =============================================================================
@@ -55,6 +56,7 @@ const DEFAULT_RETRY_BASE_DELAY = 100
 /** rqlite HTTP client with connection management and authentication. */
 export class RqliteClient {
   private readonly baseUrl: string
+  private readonly allowedSchemes: Set<string>
   private readonly authHeader: string | undefined
   private readonly defaultTimeout: number
   private readonly config: RqliteConfig
@@ -62,10 +64,13 @@ export class RqliteClient {
   private readonly maxRetries: number
   private readonly maxRedirects: number
   private readonly retryBaseDelay: number
+  private readonly clientController: AbortController
+  private _destroyed = false
 
   constructor(config: RqliteConfig) {
     const scheme = config.tls === true ? "https" : "http"
     this.baseUrl = `${scheme}://${config.host}`
+    this.allowedSchemes = config.tls === true ? new Set(["https:"]) : new Set(["http:", "https:"])
     this.authHeader = config.auth ? encodeBasicAuth(config.auth) : undefined
     this.defaultTimeout = config.timeout ?? 10_000
     this.config = config
@@ -73,20 +78,42 @@ export class RqliteClient {
     this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES
     this.maxRedirects = config.maxRedirects ?? DEFAULT_MAX_REDIRECTS
     this.retryBaseDelay = config.retryBaseDelay ?? DEFAULT_RETRY_BASE_DELAY
+    this.clientController = new AbortController()
+  }
+
+  /** Whether this client has been destroyed. */
+  get destroyed(): boolean {
+    return this._destroyed
+  }
+
+  /**
+   * Destroy the client, aborting all in-flight and future requests.
+   *
+   * After calling `destroy()`, all pending requests will reject and any
+   * new requests will fail immediately.
+   */
+  destroy(): void {
+    this._destroyed = true
+    this.clientController.abort()
   }
 
   /** Send a GET request and parse the JSON response. */
-  async get<T>(path: string, params?: Record<string, string>): Promise<Result<T, RqliteError>> {
-    return this.request<T>({ method: "GET", path, params })
+  async get<T>(
+    path: string,
+    params?: Record<string, string>,
+    signal?: AbortSignal
+  ): Promise<Result<T, RqliteError>> {
+    return this.request<T>({ method: "GET", path, params, signal })
   }
 
   /** Send a POST request with a JSON body and parse the response. */
   async post<T>(
     path: string,
     body: unknown,
-    params?: Record<string, string>
+    params?: Record<string, string>,
+    signal?: AbortSignal
   ): Promise<Result<T, RqliteError>> {
-    return this.request<T>({ method: "POST", path, body, params })
+    return this.request<T>({ method: "POST", path, body, params, signal })
   }
 
   /**
@@ -133,7 +160,12 @@ export class RqliteClient {
     options?: ExecuteOptions
   ): Promise<Result<ExecuteResult[], RqliteError>> {
     const params = buildExecuteParams(options)
-    const result = await this.post<RqliteExecuteResponse>("/db/execute", statements, params)
+    const result = await this.post<RqliteExecuteResponse>(
+      "/db/execute",
+      statements,
+      params,
+      options?.signal
+    )
     if (!result.ok) {
       return result
     }
@@ -187,7 +219,12 @@ export class RqliteClient {
     options?: QueryOptions
   ): Promise<Result<QueryResult[], RqliteError>> {
     const queryParams = buildQueryParams(options, this.config)
-    const result = await this.post<RqliteQueryResponse>("/db/query", statements, queryParams)
+    const result = await this.post<RqliteQueryResponse>(
+      "/db/query",
+      statements,
+      queryParams,
+      options?.signal
+    )
     if (!result.ok) {
       return result
     }
@@ -238,6 +275,9 @@ export class RqliteClient {
       }
       if (options?.timeout !== undefined) {
         queryOptions.timeout = options.timeout
+      }
+      if (options?.signal !== undefined) {
+        queryOptions.signal = options.signal
       }
 
       const result = await this.query(paginatedSql, paginatedParams, queryOptions)
@@ -298,7 +338,12 @@ export class RqliteClient {
     options?: RequestOpts
   ): Promise<Result<RequestResult[], RqliteError>> {
     const params = buildRequestParams(options, this.config)
-    const result = await this.post<RqliteRequestResponse>("/db/request", statements, params)
+    const result = await this.post<RqliteRequestResponse>(
+      "/db/request",
+      statements,
+      params,
+      options?.signal
+    )
     if (!result.ok) {
       return result
     }
@@ -361,12 +406,15 @@ export class RqliteClient {
    * }
    * ```
    */
-  async ready(options?: { noleader?: boolean }): Promise<Result<ReadyResult, RqliteError>> {
+  async ready(options?: {
+    noleader?: boolean
+    signal?: AbortSignal
+  }): Promise<Result<ReadyResult, RqliteError>> {
     const params: Record<string, string> = {}
     if (options?.noleader === true) {
       params.noleader = ""
     }
-    return this.requestText("/readyz", params)
+    return this.requestText("/readyz", params, options?.signal)
   }
 
   /**
@@ -385,12 +433,15 @@ export class RqliteClient {
    * }
    * ```
    */
-  async nodes(options?: { nonvoters?: boolean }): Promise<Result<ClusterNode[], RqliteError>> {
+  async nodes(options?: {
+    nonvoters?: boolean
+    signal?: AbortSignal
+  }): Promise<Result<ClusterNode[], RqliteError>> {
     const params: Record<string, string> = {}
     if (options?.nonvoters === true) {
       params.nonvoters = ""
     }
-    const result = await this.get<RqliteNodesResponse>("/nodes", params)
+    const result = await this.get<RqliteNodesResponse>("/nodes", params, options?.signal)
     if (!result.ok) {
       return result
     }
@@ -408,8 +459,35 @@ export class RqliteClient {
     return url.toString()
   }
 
+  /**
+   * Check for a redirect response and validate the Location header.
+   * Returns `ok(url)` for a valid redirect, `err(...)` for a disallowed one,
+   * or `undefined` if not a redirect.
+   */
+  private maybeRedirect(response: Response): Result<string, ClientError> | undefined {
+    if (!this.followRedirects) {
+      return undefined
+    }
+    if (response.status !== 301 && response.status !== 307) {
+      return undefined
+    }
+    const location = response.headers.get("Location")
+    if (location === null) {
+      return undefined
+    }
+    const validated = validateRedirectUrl(location, this.allowedSchemes)
+    if (validated === undefined) {
+      return err(new ConnectionError("redirect to disallowed URL", { url: location }))
+    }
+    return ok(validated)
+  }
+
   /** Execute an HTTP request against rqlite with redirect following and retry. */
   private async request<T>(options: RequestOptions): Promise<Result<T, ClientError>> {
+    if (this._destroyed) {
+      return err(new ConnectionError("client is destroyed"))
+    }
+
     const timeout = options.timeout ?? this.defaultTimeout
     let url = this.buildUrl(options.path, options.params)
 
@@ -436,6 +514,8 @@ export class RqliteClient {
         controller.abort()
       }, timeout)
 
+      const cleanup = linkSignals(controller, this.clientController.signal, options.signal)
+
       try {
         const response = await fetch(url, {
           method: options.method,
@@ -446,14 +526,15 @@ export class RqliteClient {
         })
 
         // Handle leader redirects (301/307)
-        if ((response.status === 301 || response.status === 307) && this.followRedirects) {
-          const location = response.headers.get("Location")
-          if (location !== null) {
-            url = location
-            lastError = new ConnectionError("leader redirect", { url })
-            redirects++
-            continue
+        const redirectResult = this.maybeRedirect(response)
+        if (redirectResult !== undefined) {
+          if (!redirectResult.ok) {
+            return redirectResult
           }
+          url = redirectResult.value
+          lastError = new ConnectionError("leader redirect", { url })
+          redirects++
+          continue
         }
 
         return await handleResponse<T>(response, url)
@@ -462,6 +543,7 @@ export class RqliteClient {
         retries++
       } finally {
         clearTimeout(timeoutId)
+        cleanup()
       }
     }
 
@@ -472,50 +554,84 @@ export class RqliteClient {
    * Send a GET request to a text endpoint (e.g. `/readyz`) and parse the ready state.
    *
    * Unlike `request()`, this treats HTTP 503 as a valid "not ready" response
-   * rather than an error.
+   * rather than an error. Includes retry and redirect support.
    */
   private async requestText(
     path: string,
-    params?: Record<string, string>
+    params?: Record<string, string>,
+    signal?: AbortSignal
   ): Promise<Result<ReadyResult, ClientError>> {
+    if (this._destroyed) {
+      return err(new ConnectionError("client is destroyed"))
+    }
+
     const timeout = this.defaultTimeout
-    const url = this.buildUrl(path, params)
+    let url = this.buildUrl(path, params)
 
     const headers: Record<string, string> = {}
     if (this.authHeader !== undefined) {
       headers.Authorization = this.authHeader
     }
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => {
-      controller.abort()
-    }, timeout)
+    let lastError: ClientError | undefined
+    let retries = 0
+    let redirects = 0
 
-    try {
-      const response = await fetch(url, {
-        method: "GET",
-        headers,
-        signal: controller.signal
-      })
-
-      if (response.status === 401) {
-        return err(new AuthenticationError("unauthorised"))
+    while (retries <= this.maxRetries && redirects <= this.maxRedirects) {
+      if (retries > 0 && lastError !== undefined) {
+        await sleep(jitteredDelay(this.retryBaseDelay, retries - 1))
       }
 
-      if (response.status === 403) {
-        return err(new AuthenticationError("forbidden"))
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        controller.abort()
+      }, timeout)
+
+      const cleanup = linkSignals(controller, this.clientController.signal, signal)
+
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers,
+          signal: controller.signal,
+          redirect: "manual"
+        })
+
+        // Handle leader redirects
+        const redirectResult = this.maybeRedirect(response)
+        if (redirectResult !== undefined) {
+          if (!redirectResult.ok) {
+            return redirectResult
+          }
+          url = redirectResult.value
+          lastError = new ConnectionError("leader redirect", { url })
+          redirects++
+          continue
+        }
+
+        if (response.status === 401) {
+          return err(new AuthenticationError("unauthorised"))
+        }
+
+        if (response.status === 403) {
+          return err(new AuthenticationError("forbidden"))
+        }
+
+        const body = await response.text()
+        const ready = response.status === 200
+        const isLeader = body.includes("[Leader]")
+
+        return ok({ ready, isLeader })
+      } catch (error) {
+        lastError = mapFetchError(error, url)
+        retries++
+      } finally {
+        clearTimeout(timeoutId)
+        cleanup()
       }
-
-      const body = await response.text()
-      const ready = response.status === 200
-      const isLeader = body.includes("[Leader]")
-
-      return ok({ ready, isLeader })
-    } catch (error) {
-      return err(mapFetchError(error, url))
-    } finally {
-      clearTimeout(timeoutId)
     }
+
+    return err(lastError ?? new ConnectionError("max retries exceeded", { url }))
   }
 }
 
@@ -534,10 +650,57 @@ export function createRqliteClient(config: RqliteConfig): RqliteClient {
 
 type ClientError = ConnectionError | AuthenticationError | QueryError
 
-/** Encode basic auth credentials as a header value. */
+/** Encode basic auth credentials as a header value (UTF-8 safe). */
 function encodeBasicAuth(auth: RqliteAuth): string {
   const credentials = `${auth.username}:${auth.password}`
-  return `Basic ${btoa(credentials)}`
+  const encoded = new TextEncoder().encode(credentials)
+  let binary = ""
+  for (const byte of encoded) {
+    binary += String.fromCharCode(byte)
+  }
+  return `Basic ${btoa(binary)}`
+}
+
+/**
+ * Validate a redirect Location URL against allowed schemes.
+ * Returns the URL string if valid, or `undefined` if disallowed.
+ */
+function validateRedirectUrl(location: string, allowedSchemes: Set<string>): string | undefined {
+  try {
+    const parsed = new URL(location)
+    if (!allowedSchemes.has(parsed.protocol)) {
+      return undefined
+    }
+    return parsed.toString()
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Link external abort signals to a per-request controller.
+ * Returns a cleanup function that removes all listeners.
+ */
+function linkSignals(target: AbortController, ...signals: (AbortSignal | undefined)[]): () => void {
+  const handlers: [AbortSignal, () => void][] = []
+  for (const signal of signals) {
+    if (signal === undefined) {
+      continue
+    }
+    const handler = (): void => {
+      target.abort()
+    }
+    signal.addEventListener("abort", handler)
+    handlers.push([signal, handler])
+    if (signal.aborted) {
+      target.abort()
+    }
+  }
+  return () => {
+    for (const [signal, handler] of handlers) {
+      signal.removeEventListener("abort", handler)
+    }
+  }
 }
 
 /** Sleep for the given number of milliseconds. */
