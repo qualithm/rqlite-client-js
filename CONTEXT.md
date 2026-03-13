@@ -80,7 +80,7 @@ and SQLite internals.
 | Redirect safety    | URL scheme validation on leader redirects (SSRF mitigation)                   |
 | Client lifecycle   | `destroy()` method aborts in-flight requests and prevents new ones            |
 | API documentation  | TypeDoc with zero warnings                                                    |
-| Examples           | Six runnable examples covering all major features                             |
+| Examples           | Nine runnable examples covering all major features                            |
 
 ---
 

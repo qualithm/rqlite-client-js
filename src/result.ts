@@ -101,7 +101,16 @@ export function toRowsPaginated(page: {
   offset: number
   hasMore: boolean
   pageSize: number
-}): { rows: Record<string, unknown>[]; offset: number; hasMore: boolean; pageSize: number } {
+}): {
+  /** Row objects keyed by column name. */
+  rows: Record<string, unknown>[]
+  /** The offset of this page (0-based). */
+  offset: number
+  /** Whether more pages are available after this one. */
+  hasMore: boolean
+  /** The page size used for this query. */
+  pageSize: number
+} {
   return {
     rows: toRows(page.rows),
     offset: page.offset,
