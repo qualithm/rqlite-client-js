@@ -236,6 +236,25 @@ Acceptance: Complete API docs; runnable examples for all major features.
 
 Acceptance: No template references remain; package metadata is correct.
 
+### Client-Side Pagination
+
+- [ ] Define `PaginationOptions` type — `pageSize: number`, optional `offset: number`
+- [ ] Define `PageResult<T>` type — `rows: T`, `offset: number`, `hasMore: boolean`,
+      `pageSize: number`
+- [ ] Implement `queryPaginated(sql, params?, options?)` — returns
+      `AsyncGenerator<PageResult<QueryResult>>`
+- [ ] Auto-generate `LIMIT ? OFFSET ?` wrapping around user SQL
+- [ ] Handle empty page detection for `hasMore` (fetch `pageSize + 1`, return `pageSize`)
+- [ ] Add `toRowsPaginated()` convenience for keyed row objects per page
+- [ ] Unit tests — page iteration, empty results, partial last page, custom offset
+- [ ] Integration test — paginate over multi-page result set against real rqlite
+- [ ] Document pagination in README with `for await` example
+- [ ] Update TypeDoc exports
+
+Acceptance:
+`for await (const page of client.queryPaginated("SELECT * FROM large_table", [], { pageSize: 100 }))`
+iterates all rows in bounded-memory pages. Zero new runtime dependencies.
+
 ---
 
 ## Learnings
