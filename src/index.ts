@@ -6,7 +6,7 @@
 
 // Result
 export type { Err, Ok, Result } from "./result.js"
-export { err, isErr, isOk, ok, toRows } from "./result.js"
+export { err, isErr, isOk, ok, toRows, toRowsPaginated } from "./result.js"
 
 // Errors
 export { AuthenticationError, ConnectionError, QueryError, RqliteError } from "./errors.js"
@@ -21,6 +21,8 @@ export type {
   ExecuteOptions,
   ExecuteResult,
   FreshnessOptions,
+  PageResult,
+  PaginationOptions,
   QueryOptions,
   QueryResult,
   ReadyResult,

@@ -80,3 +80,32 @@ export function toRows(result: {
     return obj
   })
 }
+
+/**
+ * Convert a paginated {@link QueryResult} page into an array of row objects.
+ *
+ * Returns a {@link PageResult} whose `rows` field is an array of
+ * `Record<string, unknown>` objects keyed by column name.
+ *
+ * @example
+ * ```ts
+ * for await (const page of client.queryPaginated("SELECT id, name FROM users", [], { pageSize: 50 })) {
+ *   const rowPage = toRowsPaginated(page)
+ *   // rowPage.rows → [{ id: 1, name: "Alice" }, ...]
+ *   // rowPage.hasMore, rowPage.offset, rowPage.pageSize
+ * }
+ * ```
+ */
+export function toRowsPaginated(page: {
+  rows: { columns: string[]; values: unknown[][] }
+  offset: number
+  hasMore: boolean
+  pageSize: number
+}): { rows: Record<string, unknown>[]; offset: number; hasMore: boolean; pageSize: number } {
+  return {
+    rows: toRows(page.rows),
+    offset: page.offset,
+    hasMore: page.hasMore,
+    pageSize: page.pageSize
+  }
+}

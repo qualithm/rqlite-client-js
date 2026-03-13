@@ -201,4 +201,48 @@ describe("rqlite integration", () => {
       expect(isOk(result)).toBe(true)
     })
   })
+
+  describe("paginated queries", () => {
+    it("paginates over a multi-page result set", async () => {
+      // Insert enough rows into a dedicated table
+      await client.execute(
+        "CREATE TABLE IF NOT EXISTS pagination_test (id INTEGER PRIMARY KEY, val TEXT)"
+      )
+      const statements: unknown[] = []
+      for (let i = 1; i <= 10; i++) {
+        statements.push([
+          "INSERT INTO pagination_test(id, val) VALUES(?, ?)",
+          i,
+          `row-${String(i)}`
+        ])
+      }
+      const insertResult = await client.executeBatch(statements)
+      expect(isOk(insertResult)).toBe(true)
+
+      // Paginate with pageSize=3 → expect 4 pages (3+3+3+1)
+      const pages = []
+      for await (const page of client.queryPaginated(
+        "SELECT id, val FROM pagination_test ORDER BY id",
+        [],
+        { pageSize: 3 }
+      )) {
+        pages.push(page)
+      }
+
+      expect(pages.length).toBeGreaterThanOrEqual(3)
+
+      // All values collected should cover ids 1–10
+      const allIds = pages.flatMap((p) => p.rows.values.map((row) => row[0]))
+      expect(allIds).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+
+      // Last page should have hasMore=false
+      expect(pages[pages.length - 1].hasMore).toBe(false)
+
+      // All other pages should have hasMore=true
+      for (let i = 0; i < pages.length - 1; i++) {
+        expect(pages[i].hasMore).toBe(true)
+        expect(pages[i].rows.values).toHaveLength(3)
+      }
+    })
+  })
 })

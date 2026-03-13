@@ -169,6 +169,36 @@ if (result.ok) {
 }
 ```
 
+#### Paginated Queries
+
+Use `queryPaginated()` to iterate over large result sets in bounded-memory pages. It automatically
+appends `LIMIT`/`OFFSET` to your SQL and yields pages via an async generator:
+
+```ts
+import { toRowsPaginated } from "@qualithm/rqlite-client"
+
+for await (const page of client.queryPaginated("SELECT * FROM large_table", [], {
+  pageSize: 100
+})) {
+  console.log(page.rows.values.length, page.hasMore, page.offset)
+
+  // Or convert to keyed row objects:
+  const { rows } = toRowsPaginated(page)
+  // rows → [{ id: 1, name: "Alice" }, ...]
+}
+```
+
+You can also start from a custom offset:
+
+```ts
+for await (const page of client.queryPaginated("SELECT * FROM large_table", [], {
+  pageSize: 50,
+  offset: 200
+})) {
+  // starts from row 200
+}
+```
+
 ### Transactions
 
 ```ts

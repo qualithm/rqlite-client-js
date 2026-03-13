@@ -11,6 +11,8 @@ import type {
   ClusterNode,
   ExecuteOptions,
   ExecuteResult,
+  PageResult,
+  PaginationOptions,
   QueryOptions,
   QueryResult,
   ReadyResult,
@@ -190,6 +192,83 @@ export class RqliteClient {
       return result
     }
     return parseQueryResponse(result.value)
+  }
+
+  /**
+   * Execute a paginated query, yielding one page at a time.
+   *
+   * Appends `LIMIT` and `OFFSET` clauses to the user SQL. Each page fetches
+   * `pageSize + 1` rows; if the extra row is present, `hasMore` is `true`
+   * and only `pageSize` rows are returned.
+   *
+   * @example
+   * ```ts
+   * for await (const page of client.queryPaginated(
+   *   "SELECT * FROM large_table",
+   *   [],
+   *   { pageSize: 100 }
+   * )) {
+   *   console.log(page.rows.values.length, page.hasMore)
+   * }
+   * ```
+   */
+  async *queryPaginated(
+    sql: string,
+    params?: SqlValue[],
+    options?: PaginationOptions & QueryOptions
+  ): AsyncGenerator<PageResult<QueryResult>, void, undefined> {
+    const pageSize = options?.pageSize ?? 100
+    let offset = options?.offset ?? 0
+
+    let hasMore = true
+
+    while (hasMore) {
+      const paginatedSql = `${sql} LIMIT ? OFFSET ?`
+      const paginatedParams: SqlValue[] = [...(params ?? []), pageSize + 1, offset]
+
+      const queryOptions: QueryOptions = {}
+      if (options?.level !== undefined) {
+        queryOptions.level = options.level
+      }
+      if (options?.freshness !== undefined) {
+        queryOptions.freshness = options.freshness
+      }
+      if (options?.associative !== undefined) {
+        queryOptions.associative = options.associative
+      }
+      if (options?.timeout !== undefined) {
+        queryOptions.timeout = options.timeout
+      }
+
+      const result = await this.query(paginatedSql, paginatedParams, queryOptions)
+      if (!result.ok) {
+        // Yield a page with empty values so the consumer can inspect the error
+        // via the standard Result pattern — but actually we need to throw/return
+        // since generators can't yield Result errors. We throw the error so
+        // the consumer can catch it.
+        throw result.error
+      }
+
+      const allValues = result.value.values
+      const pageHasMore = allValues.length > pageSize
+      const pageValues = pageHasMore ? allValues.slice(0, pageSize) : allValues
+
+      yield {
+        rows: {
+          columns: result.value.columns,
+          types: result.value.types,
+          values: pageValues,
+          time: result.value.time
+        },
+        offset,
+        hasMore: pageHasMore,
+        pageSize
+      }
+
+      hasMore = pageHasMore
+
+      offset += pageSize
+    }
   }
 
   /**

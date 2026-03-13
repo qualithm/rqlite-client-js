@@ -59,24 +59,25 @@ and SQLite internals.
 
 ### Features
 
-| Feature            | Implementation                                                    |
-| ------------------ | ----------------------------------------------------------------- |
-| Core types         | `Result<T, E>`, error hierarchy, config, SQL value types          |
-| HTTP client        | Native fetch, timeout, JSON serialisation                         |
-| Execute (writes)   | Single, batch, parameterised, queue/wait modes                    |
-| Query (reads)      | Single, batch, parameterised, associative format                  |
-| Result conversion  | `toRows()` utility converts array results to keyed row objects    |
-| Unified request    | Mixed read/write via `/db/request`                                |
-| Transactions       | `transaction` flag on execute and request batches                 |
-| Parameterised SQL  | Positional `?` placeholders with `SqlValue` binding               |
-| Consistency levels | `none`, `weak`, `strong` with freshness options                   |
-| Leader redirect    | Automatic 301/307 following with separate redirect budget         |
-| Retry with backoff | Jittered exponential backoff, separate retry and redirect budgets |
-| Authentication     | HTTP basic auth header generation                                 |
-| TLS                | HTTPS via native fetch                                            |
-| Cluster status     | Status, readiness, node listing, server version                   |
-| API documentation  | TypeDoc with zero warnings                                        |
-| Examples           | Six runnable examples covering all major features                 |
+| Feature            | Implementation                                                                |
+| ------------------ | ----------------------------------------------------------------------------- |
+| Core types         | `Result<T, E>`, error hierarchy, config, SQL value types                      |
+| HTTP client        | Native fetch, timeout, JSON serialisation                                     |
+| Execute (writes)   | Single, batch, parameterised, queue/wait modes                                |
+| Query (reads)      | Single, batch, parameterised, associative format                              |
+| Result conversion  | `toRows()` utility converts array results to keyed row objects                |
+| Pagination         | `queryPaginated()` async generator with `LIMIT`/`OFFSET`, `toRowsPaginated()` |
+| Unified request    | Mixed read/write via `/db/request`                                            |
+| Transactions       | `transaction` flag on execute and request batches                             |
+| Parameterised SQL  | Positional `?` placeholders with `SqlValue` binding                           |
+| Consistency levels | `none`, `weak`, `strong` with freshness options                               |
+| Leader redirect    | Automatic 301/307 following with separate redirect budget                     |
+| Retry with backoff | Jittered exponential backoff, separate retry and redirect budgets             |
+| Authentication     | HTTP basic auth header generation                                             |
+| TLS                | HTTPS via native fetch                                                        |
+| Cluster status     | Status, readiness, node listing, server version                               |
+| API documentation  | TypeDoc with zero warnings                                                    |
+| Examples           | Six runnable examples covering all major features                             |
 
 ---
 
@@ -238,18 +239,18 @@ Acceptance: No template references remain; package metadata is correct.
 
 ### Client-Side Pagination
 
-- [ ] Define `PaginationOptions` type — `pageSize: number`, optional `offset: number`
-- [ ] Define `PageResult<T>` type — `rows: T`, `offset: number`, `hasMore: boolean`,
+- [x] Define `PaginationOptions` type — `pageSize: number`, optional `offset: number`
+- [x] Define `PageResult<T>` type — `rows: T`, `offset: number`, `hasMore: boolean`,
       `pageSize: number`
-- [ ] Implement `queryPaginated(sql, params?, options?)` — returns
+- [x] Implement `queryPaginated(sql, params?, options?)` — returns
       `AsyncGenerator<PageResult<QueryResult>>`
-- [ ] Auto-generate `LIMIT ? OFFSET ?` wrapping around user SQL
-- [ ] Handle empty page detection for `hasMore` (fetch `pageSize + 1`, return `pageSize`)
-- [ ] Add `toRowsPaginated()` convenience for keyed row objects per page
-- [ ] Unit tests — page iteration, empty results, partial last page, custom offset
-- [ ] Integration test — paginate over multi-page result set against real rqlite
-- [ ] Document pagination in README with `for await` example
-- [ ] Update TypeDoc exports
+- [x] Auto-generate `LIMIT ? OFFSET ?` wrapping around user SQL
+- [x] Handle empty page detection for `hasMore` (fetch `pageSize + 1`, return `pageSize`)
+- [x] Add `toRowsPaginated()` convenience for keyed row objects per page
+- [x] Unit tests — page iteration, empty results, partial last page, custom offset
+- [x] Integration test — paginate over multi-page result set against real rqlite
+- [x] Document pagination in README with `for await` example
+- [x] Update TypeDoc exports
 
 Acceptance:
 `for await (const page of client.queryPaginated("SELECT * FROM large_table", [], { pageSize: 100 }))`

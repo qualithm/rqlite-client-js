@@ -173,6 +173,30 @@ export type ExecuteResult = {
 }
 
 // =============================================================================
+// Pagination
+// =============================================================================
+
+/** Options for paginated queries. */
+export type PaginationOptions = {
+  /** Number of rows per page. */
+  pageSize: number
+  /** Starting row offset (defaults to `0`). */
+  offset?: number
+}
+
+/** A single page of query results. */
+export type PageResult<T> = {
+  /** The rows for this page. */
+  rows: T
+  /** The offset of this page (0-based). */
+  offset: number
+  /** Whether more pages are available after this one. */
+  hasMore: boolean
+  /** The page size used for this query. */
+  pageSize: number
+}
+
+// =============================================================================
 // Cluster Status
 // =============================================================================
 
