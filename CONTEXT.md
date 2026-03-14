@@ -268,15 +268,3 @@ iterates all rows in bounded-memory pages. Zero new runtime dependencies.
 - [x] Client `destroy()` method — abort in-flight requests, reject new requests after disposal
 
 Acceptance: 27 hardening tests pass; typecheck and lint clean; all 253 tests pass.
-
----
-
-## Learnings
-
-> Append-only. Never edit or delete existing entries.
-
-| Date       | Learning                                                                                                                                                                                         |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 2025-01-01 | Separate redirect and retry budgets prevent redirects from exhausting retry budget during leader elections                                                                                       |
-| 2025-01-01 | Jittered backoff (`delay * 2^attempt * (0.5 + random()*0.5)`) prevents thundering herd when multiple clients retry simultaneously                                                                |
-| 2025-01-01 | Array result format is the better default — aligns with wire format, avoids object allocation, matches `better-sqlite3` / `pg` driver conventions; `toRows()` utility covers ergonomic use cases |
