@@ -7,9 +7,29 @@
 Native [rqlite](https://rqlite.io) client for JavaScript and TypeScript runtimes. Zero runtime
 dependencies — uses native `fetch`.
 
-## Install
+## Features
+
+- **Execute & Query** — parameterised writes and reads
+- **Batch operations** — multiple statements in a single HTTP call
+- **Transactions** — atomic multi-statement execution
+- **Unified requests** — mixed read/write batches via `/db/request`
+- **Consistency levels** — `none`, `weak`, `strong`
+- **Freshness control** — bounded staleness for `none` consistency reads
+- **Leader redirect** — automatic 301/307 redirect following
+- **Retry with backoff** — configurable exponential backoff
+- **Authentication** — HTTP basic auth
+- **TLS** — HTTPS support via native fetch
+- **Cluster inspection** — node status, readiness, and cluster listing
+- **Result types** — `Result<T, E>` discriminated unions, no thrown exceptions
+- **Typed errors** — `ConnectionError`, `QueryError`, `AuthenticationError` with `isError()` guards
+- **Zero dependencies** — uses native `fetch`
+- **Cross-runtime** — Bun, Node.js 20+, Deno
+
+## Installation
 
 ```bash
+bun add @qualithm/rqlite-client
+# or
 npm install @qualithm/rqlite-client
 ```
 
@@ -31,24 +51,6 @@ if (result.ok) {
   console.log(result.value.values) // [[1, "Alice"]]
 }
 ```
-
-## Features
-
-- **Execute & Query** — parameterised writes and reads
-- **Batch operations** — multiple statements in a single HTTP call
-- **Transactions** — atomic multi-statement execution
-- **Unified requests** — mixed read/write batches via `/db/request`
-- **Consistency levels** — `none`, `weak`, `strong`
-- **Freshness control** — bounded staleness for `none` consistency reads
-- **Leader redirect** — automatic 301/307 redirect following
-- **Retry with backoff** — configurable exponential backoff
-- **Authentication** — HTTP basic auth
-- **TLS** — HTTPS support via native fetch
-- **Cluster inspection** — node status, readiness, and cluster listing
-- **Result types** — `Result<T, E>` discriminated unions, no thrown exceptions
-- **Typed errors** — `ConnectionError`, `QueryError`, `AuthenticationError` with `isError()` guards
-- **Zero dependencies** — uses native `fetch`
-- **Cross-runtime** — Bun, Node.js 20+, Deno
 
 ## Compatibility
 
@@ -332,7 +334,7 @@ bun run build
 ### Testing
 
 ```bash
-bun test             # unit tests
+bun run test              # unit tests
 bun run test:integration  # against a real rqlite instance
 bun run test:coverage     # with coverage report
 ```
