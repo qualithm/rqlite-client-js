@@ -1,15 +1,18 @@
 # Examples
 
-Runnable examples demonstrating rqlite client usage. Requires a running rqlite instance (default:
-`localhost:4001`).
+Runnable examples demonstrating rqlite client usage.
 
-## Running
+## Prerequisites
+
+Start a local rqlite node (default: `localhost:4001`):
 
 ```bash
-# Start a local rqlite node
 docker run -p 4001:4001 rqlite/rqlite
+```
 
-# Run any example
+## Running Examples
+
+```bash
 bun run examples/basic-usage.ts
 ```
 
