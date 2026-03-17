@@ -10,7 +10,7 @@
 import { execSync } from "node:child_process"
 import { resolve } from "node:path"
 
-const COMPOSE_FILE = resolve(import.meta.dirname, "../../../docker-compose.test.yml")
+const COMPOSE_FILE = resolve(import.meta.dirname, "../../../docker-compose.test.yaml")
 const RQLITE_HOST = "localhost:4001"
 const HEALTH_CHECK_INTERVAL = 500
 const HEALTH_CHECK_TIMEOUT = 30_000

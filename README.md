@@ -62,7 +62,7 @@ The integration test suite runs against rqlite via Docker. Override the version 
 `RQLITE_VERSION` environment variable:
 
 ```bash
-RQLITE_VERSION=9.4.5 docker compose -f docker-compose.test.yml up -d
+RQLITE_VERSION=9.4.5 docker compose -f docker-compose.test.yaml up -d
 ```
 
 Use `serverVersion()` at runtime to check the connected server:
