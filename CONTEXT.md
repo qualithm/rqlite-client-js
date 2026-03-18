@@ -128,3 +128,16 @@ pooling, and SQLite internals.
 ---
 
 ## Work Queue
+
+### mTLS support via custom fetch injection
+
+Inject an optional `fetch` function into `RqliteConfig` so users can supply a pre-configured fetch
+with client certificates for their runtime (Node.js undici dispatcher, Bun tls options,
+Deno.createHttpClient). Keeps zero runtime deps and stays runtime-agnostic.
+
+- [ ] Add optional `fetch` property to `RqliteConfig` in `types.ts`
+- [ ] Thread custom fetch through `RqliteClient` constructor and `request()` method in `client.ts`
+- [ ] Add unit tests for custom fetch injection (verify it is called, headers/body passed through)
+- [ ] Add `examples/mtls.ts` showing mTLS setup for Node.js, Bun, and Deno
+- [ ] Update README TLS section to document custom fetch and mTLS usage
+- [ ] Update CONTEXT.md Current Reality features table
