@@ -4,6 +4,8 @@
  * Demonstrates read consistency control: `none`, `weak`, and `strong` levels,
  * plus freshness options for stale reads.
  *
+ * Requires a running rqlite node (`docker compose up -d`).
+ *
  * @example
  * ```bash
  * bun run examples/consistency-levels.ts
@@ -76,4 +78,4 @@ async function main(): Promise<void> {
   console.log("\nDone.")
 }
 
-void main()
+main().catch(console.error)

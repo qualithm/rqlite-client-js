@@ -3,6 +3,8 @@
  *
  * Demonstrates leader redirect handling, node health checks, and cluster inspection.
  *
+ * Requires a running rqlite cluster (`docker compose up -d`).
+ *
  * @example
  * ```bash
  * bun run examples/cluster-failover.ts
@@ -87,4 +89,4 @@ async function main(): Promise<void> {
   console.log("\nDone.")
 }
 
-void main()
+main().catch(console.error)

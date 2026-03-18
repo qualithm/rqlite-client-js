@@ -3,6 +3,8 @@
  *
  * Demonstrates wrapping multiple statements in an atomic transaction.
  *
+ * Requires a running rqlite node (`docker compose up -d`).
+ *
  * @example
  * ```bash
  * bun run examples/transactions.ts
@@ -74,4 +76,4 @@ async function main(): Promise<void> {
   console.log("\nDone.")
 }
 
-void main()
+main().catch(console.error)

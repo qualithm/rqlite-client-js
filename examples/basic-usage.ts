@@ -1,7 +1,9 @@
 /**
- * Basic usage example — connect, execute, and query.
+ * Basic usage example.
  *
  * Demonstrates creating a client, inserting data, and reading it back.
+ *
+ * Requires a running rqlite node (`docker compose up -d`).
  *
  * @example
  * ```bash
@@ -28,10 +30,10 @@ async function main(): Promise<void> {
     console.error("failed to create table:", create.error.message)
     return
   }
-  console.log("  Table created\n")
+  console.log("  Table created")
 
   // Insert a row with parameterised values
-  console.log("--- Inserting row ---")
+  console.log("\n--- Inserting row ---")
   const insert = await client.execute("INSERT INTO users(name, email) VALUES(?, ?)", [
     "Alice",
     "alice@example.com"
@@ -40,10 +42,10 @@ async function main(): Promise<void> {
     console.error("failed to insert:", insert.error.message)
     return
   }
-  console.log(`  Inserted row (id: ${String(insert.value.lastInsertId)})\n`)
+  console.log(`  Inserted row (id: ${String(insert.value.lastInsertId)})`)
 
   // Query the data back
-  console.log("--- Querying rows ---")
+  console.log("\n--- Querying rows ---")
   const query = await client.query("SELECT * FROM users")
   if (!query.ok) {
     console.error("failed to query:", query.error.message)
@@ -65,4 +67,4 @@ async function main(): Promise<void> {
   console.log("\nDone.")
 }
 
-void main()
+main().catch(console.error)

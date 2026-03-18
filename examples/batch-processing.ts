@@ -3,6 +3,8 @@
  *
  * Demonstrates executing and querying multiple statements in a single request.
  *
+ * Requires a running rqlite node (`docker compose up -d`).
+ *
  * @example
  * ```bash
  * bun run examples/batch-processing.ts
@@ -82,4 +84,4 @@ async function main(): Promise<void> {
   console.log("\nDone.")
 }
 
-void main()
+main().catch(console.error)

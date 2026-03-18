@@ -4,6 +4,8 @@
  * Demonstrates `destroy()` for cleanup, `AbortSignal` for request cancellation,
  * and `serverVersion()` for runtime version checks.
  *
+ * Requires a running rqlite node (`docker compose up -d`).
+ *
  * @example
  * ```bash
  * bun run examples/client-lifecycle.ts
@@ -66,4 +68,4 @@ async function main(): Promise<void> {
   console.log("\nDone.")
 }
 
-void main()
+main().catch(console.error)

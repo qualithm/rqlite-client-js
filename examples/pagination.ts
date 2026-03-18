@@ -5,6 +5,8 @@
  * result sets, and `toRows()` / `toRowsPaginated()` for converting array
  * results into keyed row objects.
  *
+ * Requires a running rqlite node (`docker compose up -d`).
+ *
  * @example
  * ```bash
  * bun run examples/pagination.ts
@@ -75,4 +77,4 @@ async function main(): Promise<void> {
   console.log("\nDone.")
 }
 
-void main()
+main().catch(console.error)

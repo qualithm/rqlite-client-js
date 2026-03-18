@@ -3,6 +3,8 @@
  *
  * Demonstrates Result-based error handling and typed error narrowing.
  *
+ * Requires a running rqlite node (`docker compose up -d`).
+ *
  * @example
  * ```bash
  * bun run examples/error-handling.ts
@@ -25,7 +27,7 @@ async function main(): Promise<void> {
   // All operations return Result<T, RqliteError> — no exceptions thrown
   const client = createRqliteClient({ host: "localhost:4001" })
 
-  // Example 1: Basic Result checking
+  // Basic Result checking
   console.log("--- Result checking ---")
   const result = await client.query("SELECT 1")
   if (result.ok) {
@@ -34,7 +36,7 @@ async function main(): Promise<void> {
     console.log("  Query failed:", result.error.message)
   }
 
-  // Example 2: Type narrowing with static isError() methods
+  // Narrow error types with static isError() methods.
   console.log("\n--- Error type narrowing ---")
   const bad = await client.execute("INVALID SQL STATEMENT")
   if (!bad.ok) {
@@ -52,7 +54,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // Example 3: Handling connection failures gracefully
+  // Handle connection failures gracefully.
   console.log("\n--- Connection failure ---")
   const offline = createRqliteClient({ host: "localhost:9999", timeout: 2000, maxRetries: 0 })
   const fail = await offline.query("SELECT 1")
@@ -61,7 +63,7 @@ async function main(): Promise<void> {
     console.log(`  Error class: ${fail.error.constructor.name}`)
   }
 
-  // Example 4: Discriminant tag matching
+  // Match errors using discriminant tags.
   console.log("\n--- Tag-based matching ---")
   const tagResult = await client.execute("DROP TABLE nonexistent_table")
   if (!tagResult.ok) {
@@ -83,4 +85,4 @@ async function main(): Promise<void> {
   console.log("\nDone.")
 }
 
-void main()
+main().catch(console.error)

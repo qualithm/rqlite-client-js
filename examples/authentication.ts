@@ -3,6 +3,8 @@
  *
  * Demonstrates connecting to a rqlite node that requires basic authentication.
  *
+ * Requires a running rqlite node (`docker compose up -d`).
+ *
  * @example
  * ```bash
  * bun run examples/authentication.ts
@@ -70,4 +72,4 @@ async function main(): Promise<void> {
   console.log("\nDone.")
 }
 
-void main()
+main().catch(console.error)
