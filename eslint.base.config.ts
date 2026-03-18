@@ -154,6 +154,7 @@ export default defineConfig([
       "@typescript-eslint/naming-convention": asRule(namingConvention),
       "@typescript-eslint/no-import-type-side-effects": "error",
       "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-unused-expressions": ["error", { allowTaggedTemplates: true }],
       "@typescript-eslint/prefer-readonly": "error",
       "@typescript-eslint/switch-exhaustiveness-check": [
         "error",
