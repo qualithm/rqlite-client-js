@@ -56,6 +56,25 @@ export type RqliteConfig = {
   maxRedirects?: number
   /** Base delay in milliseconds for exponential backoff between retries. Defaults to `100`. */
   retryBaseDelay?: number
+  /**
+   * Custom `fetch` implementation to use for HTTP requests.
+   *
+   * Supply a pre-configured fetch function to enable mTLS or other advanced
+   * transport options. When omitted, the global `fetch` is used.
+   *
+   * @example
+   * ```ts
+   * // Node.js with undici
+   * import { Agent, fetch as undiciFetch } from "undici"
+   * const agent = new Agent({ connect: { ca, cert, key } })
+   * const client = createRqliteClient({
+   *   host: "localhost:4001",
+   *   tls: true,
+   *   fetch: (input, init) => undiciFetch(input, { ...init, dispatcher: agent }),
+   * })
+   * ```
+   */
+  fetch?: typeof fetch
 }
 
 // =============================================================================

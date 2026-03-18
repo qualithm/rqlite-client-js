@@ -64,6 +64,7 @@ export class RqliteClient {
   private readonly maxRetries: number
   private readonly maxRedirects: number
   private readonly retryBaseDelay: number
+  private readonly fetchFn: typeof fetch
   private readonly clientController: AbortController
   private _destroyed = false
 
@@ -78,6 +79,7 @@ export class RqliteClient {
     this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES
     this.maxRedirects = config.maxRedirects ?? DEFAULT_MAX_REDIRECTS
     this.retryBaseDelay = config.retryBaseDelay ?? DEFAULT_RETRY_BASE_DELAY
+    this.fetchFn = config.fetch ?? globalThis.fetch
     this.clientController = new AbortController()
   }
 
@@ -517,7 +519,7 @@ export class RqliteClient {
       const cleanup = linkSignals(controller, this.clientController.signal, options.signal)
 
       try {
-        const response = await fetch(url, {
+        const response = await this.fetchFn(url, {
           method: options.method,
           headers,
           body: bodyStr,
@@ -590,7 +592,7 @@ export class RqliteClient {
       const cleanup = linkSignals(controller, this.clientController.signal, signal)
 
       try {
-        const response = await fetch(url, {
+        const response = await this.fetchFn(url, {
           method: "GET",
           headers,
           signal: controller.signal,

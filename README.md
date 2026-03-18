@@ -18,7 +18,7 @@ dependencies — uses native `fetch`.
 - **Leader redirect** — automatic 301/307 redirect following
 - **Retry with backoff** — configurable exponential backoff
 - **Authentication** — HTTP basic auth
-- **TLS** — HTTPS support via native fetch
+- **TLS & mTLS** — HTTPS via native fetch; custom `fetch` injection for client certificates
 - **Cluster inspection** — node status, readiness, and cluster listing
 - **Result types** — `Result<T, E>` discriminated unions, no thrown exceptions
 - **Typed errors** — `ConnectionError`, `QueryError`, `AuthenticationError` with `isError()` guards
@@ -97,9 +97,36 @@ const client = createRqliteClient({
   followRedirects: true, // follow leader redirects
   maxRetries: 3, // retry attempts for transient failures
   maxRedirects: 5, // redirect attempts during leader election
-  retryBaseDelay: 100 // backoff base delay (ms)
+  retryBaseDelay: 100, // backoff base delay (ms)
+  fetch: customFetch // custom fetch for mTLS (see examples/mtls.ts)
 })
 ```
+
+#### Custom Fetch (mTLS)
+
+Supply a custom `fetch` function to enable mTLS or other advanced transport options. The custom
+function receives the same arguments as the global `fetch` and must return a `Promise<Response>`.
+
+```ts
+// Node.js with undici
+import { Agent, fetch as undiciFetch } from "undici"
+
+const agent = new Agent({
+  connect: {
+    ca: readFileSync("certs/ca.pem"),
+    cert: readFileSync("certs/client-cert.pem"),
+    key: readFileSync("certs/client-key.pem")
+  }
+})
+
+const client = createRqliteClient({
+  host: "rqlite.example.com:4001",
+  tls: true,
+  fetch: (input, init) => undiciFetch(input, { ...init, dispatcher: agent })
+})
+```
+
+See [`examples/mtls.ts`](examples/mtls.ts) for Bun and Deno examples.
 
 ### Execute (Writes)
 
@@ -306,6 +333,7 @@ See the [`examples/`](examples/) directory for runnable examples:
 | [`batch-processing.ts`](examples/batch-processing.ts) | Batch insert, query, and mixed requests        |
 | [`transactions.ts`](examples/transactions.ts)         | Atomic multi-statement transactions            |
 | [`authentication.ts`](examples/authentication.ts)     | Basic auth and TLS                             |
+| [`mtls.ts`](examples/mtls.ts)                         | Custom fetch injection for mTLS                |
 | [`cluster-failover.ts`](examples/cluster-failover.ts) | Leader redirect, health checks, cluster status |
 | [`error-handling.ts`](examples/error-handling.ts)     | Result-based error handling and type narrowing |
 

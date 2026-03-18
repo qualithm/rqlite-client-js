@@ -65,12 +65,13 @@ pooling, and SQLite internals.
 | Retry with backoff | Jittered exponential backoff, separate retry and redirect budgets             |
 | Authentication     | HTTP basic auth with UTF-8-safe encoding                                      |
 | TLS                | HTTPS via native fetch                                                        |
+| Custom fetch       | Optional `fetch` injection for mTLS and advanced transport                    |
 | Cluster status     | Status, readiness, node listing, server version                               |
 | Abort signal       | User-supplied `AbortSignal` threaded through all operations                   |
 | Redirect safety    | URL scheme validation on leader redirects (SSRF mitigation)                   |
 | Client lifecycle   | `destroy()` method aborts in-flight requests and prevents new ones            |
 | API documentation  | TypeDoc with zero warnings                                                    |
-| Examples           | Nine runnable examples covering all major features                            |
+| Examples           | Ten runnable examples covering all major features                             |
 
 ### File Structure
 
@@ -129,15 +130,4 @@ pooling, and SQLite internals.
 
 ## Work Queue
 
-### mTLS support via custom fetch injection
-
-Inject an optional `fetch` function into `RqliteConfig` so users can supply a pre-configured fetch
-with client certificates for their runtime (Node.js undici dispatcher, Bun tls options,
-Deno.createHttpClient). Keeps zero runtime deps and stays runtime-agnostic.
-
-- [ ] Add optional `fetch` property to `RqliteConfig` in `types.ts`
-- [ ] Thread custom fetch through `RqliteClient` constructor and `request()` method in `client.ts`
-- [ ] Add unit tests for custom fetch injection (verify it is called, headers/body passed through)
-- [ ] Add `examples/mtls.ts` showing mTLS setup for Node.js, Bun, and Deno
-- [ ] Update README TLS section to document custom fetch and mTLS usage
-- [ ] Update CONTEXT.md Current Reality features table
+No items.

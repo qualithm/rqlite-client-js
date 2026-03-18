@@ -29,3 +29,4 @@ bun run examples/basic-usage.ts
 | [pagination.ts](pagination.ts)                 | Paginated queries and toRows result conversion |
 | [consistency-levels.ts](consistency-levels.ts) | Read consistency and freshness options         |
 | [client-lifecycle.ts](client-lifecycle.ts)     | Abort signals, destroy, and server version     |
+| [mtls.ts](mtls.ts)                             | Custom fetch injection for mTLS                |

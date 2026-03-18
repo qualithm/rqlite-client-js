@@ -70,6 +70,63 @@ describe("RqliteClient", () => {
     })
   })
 
+  describe("custom fetch", () => {
+    it("uses custom fetch when provided", async () => {
+      const customFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ store: {} }),
+        text: vi.fn().mockResolvedValue(""),
+        headers: new Headers()
+      }) as unknown as typeof fetch
+
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        fetch: customFetch
+      })
+
+      await client.get("/status")
+
+      expect(customFetch).toHaveBeenCalledTimes(1)
+      expect(customFetch).toHaveBeenCalledWith(
+        expect.stringContaining("http://localhost:4001/status"),
+        expect.any(Object)
+      )
+    })
+
+    it("passes headers and body through custom fetch", async () => {
+      const customFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ results: [{ last_insert_id: 1, rows_affected: 1 }] }),
+        text: vi.fn().mockResolvedValue(""),
+        headers: new Headers()
+      }) as unknown as typeof fetch
+
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        auth: { username: "admin", password: "secret" },
+        fetch: customFetch
+      })
+
+      await client.execute("INSERT INTO foo VALUES(1)")
+
+      const opts = (customFetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]
+      expect(opts?.headers?.Authorization).toBe(`Basic ${btoa("admin:secret")}`)
+      expect(opts?.headers?.["Content-Type"]).toBe("application/json")
+      expect(opts?.body).toBeDefined()
+    })
+
+    it("falls back to global fetch when not provided", async () => {
+      const globalFetchMock = mockFetch({ ok: true, status: 200 })
+      const client = new RqliteClient({ host: "localhost:4001" })
+
+      await client.get("/status")
+
+      expect(globalFetchMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe("authentication", () => {
     it("sends basic auth header when credentials are provided", async () => {
       const fetchMock = mockFetch({ ok: true, status: 200 })
