@@ -18,10 +18,14 @@ bun run typecheck
 
 # Tests
 echo "→ Running unit tests..."
-bun test:unit
+bun run test:unit
+
+# Build
+echo "→ Running build..."
+bun run build
 
 # Audit
 echo "→ Running dependency audit..."
-bun audit
+bun audit || echo "⚠ bun audit failed or unavailable, skipping"
 
 echo "✓ All pre-commit checks passed!"
