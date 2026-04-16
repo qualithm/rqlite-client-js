@@ -82,7 +82,8 @@ describe("RqliteClient", () => {
 
       const client = new RqliteClient({
         host: "localhost:4001",
-        fetch: customFetch
+        fetch: customFetch,
+        clusterDiscovery: false
       })
 
       await client.get("/status")
@@ -119,7 +120,7 @@ describe("RqliteClient", () => {
 
     it("falls back to global fetch when not provided", async () => {
       const globalFetchMock = mockFetch({ ok: true, status: 200 })
-      const client = new RqliteClient({ host: "localhost:4001" })
+      const client = new RqliteClient({ host: "localhost:4001", clusterDiscovery: false })
 
       await client.get("/status")
 

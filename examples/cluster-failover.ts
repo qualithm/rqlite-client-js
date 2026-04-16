@@ -1,7 +1,8 @@
 /**
  * Cluster failover example.
  *
- * Demonstrates leader redirect handling, node health checks, and cluster inspection.
+ * Demonstrates leader redirect handling, node health checks, cluster inspection,
+ * and cluster discovery with multiple seed hosts.
  *
  * Requires a running rqlite cluster (`docker compose up -d`).
  *
@@ -18,10 +19,15 @@ import { ConnectionError, createRqliteClient } from "@qualithm/rqlite-client"
 async function main(): Promise<void> {
   console.log("=== Cluster Failover ===\n")
 
-  // Leader redirects are followed automatically (default behaviour)
+  // Connect with a seed host list. If localhost:4001 is unreachable, the client
+  // will try localhost:4003 and localhost:4005 before giving up.
+  // After the first successful request, /nodes is queried in the background and
+  // the peer list is updated with the authoritative cluster membership.
   const client = createRqliteClient({
     host: "localhost:4001",
+    hosts: ["localhost:4003", "localhost:4005"],
     followRedirects: true, // default
+    clusterDiscovery: true, // default
     maxRetries: 5,
     retryBaseDelay: 200
   })
@@ -73,17 +79,29 @@ async function main(): Promise<void> {
     }
   }
 
+  // Disable cluster discovery when a load balancer handles node selection.
+  // The client will only ever talk to the single configured host.
+  console.log("\n--- Behind a load balancer (discovery disabled) ---")
+  const lbClient = createRqliteClient({
+    host: "my-rqlite-lb:4001",
+    clusterDiscovery: false,
+    timeout: 5000
+  })
+  const lbReady = await lbClient.ready()
+  console.log(`  Load balancer ready: ${String(lbReady.ok ? lbReady.value.ready : false)}`)
+
   // Demonstrate retry behaviour on connection failure
   console.log("\n--- Retry on failure ---")
   const unreachable = createRqliteClient({
     host: "localhost:9999",
+    hosts: ["localhost:9998", "localhost:9997"],
     maxRetries: 2,
     retryBaseDelay: 100,
     timeout: 1000
   })
   const fail = await unreachable.query("SELECT 1")
   if (!fail.ok && ConnectionError.isError(fail.error)) {
-    console.log(`  Failed after retries: ${fail.error.message}`)
+    console.log(`  Failed after retries across all peers: ${fail.error.message}`)
   }
 
   console.log("\nDone.")

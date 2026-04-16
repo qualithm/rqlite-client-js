@@ -16,6 +16,9 @@ dependencies — uses native `fetch`.
 - **Consistency levels** — `none`, `weak`, `strong`
 - **Freshness control** — bounded staleness for `none` consistency reads
 - **Leader redirect** — automatic 301/307 redirect following
+- **Cluster discovery** — automatic peer discovery via `/nodes`; rotates through all peers on
+  failure
+- **Multi-host seeds** — supply additional seed nodes for bootstrapping via `hosts`
 - **Retry with backoff** — configurable exponential backoff
 - **Authentication** — HTTP basic auth
 - **TLS & mTLS** — HTTPS via native fetch; custom `fetch` injection for client certificates
@@ -98,6 +101,8 @@ const client = createRqliteClient({
   maxRetries: 3, // retry attempts for transient failures
   maxRedirects: 5, // redirect attempts during leader election
   retryBaseDelay: 100, // backoff base delay (ms)
+  hosts: ["localhost:4003", "localhost:4005"], // additional seed nodes
+  clusterDiscovery: true, // discover peers via /nodes after first success
   fetch: customFetch // custom fetch for mTLS (see examples/mtls.ts)
 })
 ```
@@ -327,15 +332,15 @@ bun run docs
 
 See the [`examples/`](examples/) directory for runnable examples:
 
-| Example                                               | Description                                    |
-| ----------------------------------------------------- | ---------------------------------------------- |
-| [`basic-usage.ts`](examples/basic-usage.ts)           | Connect, execute, and query                    |
-| [`batch-processing.ts`](examples/batch-processing.ts) | Batch insert, query, and mixed requests        |
-| [`transactions.ts`](examples/transactions.ts)         | Atomic multi-statement transactions            |
-| [`authentication.ts`](examples/authentication.ts)     | Basic auth and TLS                             |
-| [`mtls.ts`](examples/mtls.ts)                         | Custom fetch injection for mTLS                |
-| [`cluster-failover.ts`](examples/cluster-failover.ts) | Leader redirect, health checks, cluster status |
-| [`error-handling.ts`](examples/error-handling.ts)     | Result-based error handling and type narrowing |
+| Example                                               | Description                                                         |
+| ----------------------------------------------------- | ------------------------------------------------------------------- |
+| [`basic-usage.ts`](examples/basic-usage.ts)           | Connect, execute, and query                                         |
+| [`batch-processing.ts`](examples/batch-processing.ts) | Batch insert, query, and mixed requests                             |
+| [`transactions.ts`](examples/transactions.ts)         | Atomic multi-statement transactions                                 |
+| [`authentication.ts`](examples/authentication.ts)     | Basic auth and TLS                                                  |
+| [`mtls.ts`](examples/mtls.ts)                         | Custom fetch injection for mTLS                                     |
+| [`cluster-failover.ts`](examples/cluster-failover.ts) | Leader redirect, multi-host seeds, cluster discovery, health checks |
+| [`error-handling.ts`](examples/error-handling.ts)     | Result-based error handling and type narrowing                      |
 
 ```bash
 bun run examples/basic-usage.ts

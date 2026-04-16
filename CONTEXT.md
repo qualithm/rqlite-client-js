@@ -15,8 +15,8 @@ executing SQL statements, querying data, and managing cluster operations.
 - Batch operations and transactions
 - Parameterised queries with SQLite binding
 - Consistency level control (none, weak, strong)
-- Leader redirect handling
-- Basic authentication
+- Leader redirect handling- Cluster peer discovery and multi-host seed bootstrapping- Basic
+  authentication
 - Bun, Node.js, and Deno runtime support
 
 **Scope:** Client library only; excludes rqlite server implementation, SQL parsing, ORM, connection
@@ -62,6 +62,8 @@ pooling, and SQLite internals.
 | Parameterised SQL  | Positional `?` placeholders with `SqlValue` binding                           |
 | Consistency levels | `none`, `weak`, `strong` with freshness options                               |
 | Leader redirect    | Automatic 301/307 following with separate redirect budget                     |
+| Cluster discovery  | Background `/nodes` refresh after first success; peer rotation on failure     |
+| Multi-host seeds   | `hosts` config option seeds initial peer pool alongside primary `host`        |
 | Retry with backoff | Jittered exponential backoff, separate retry and redirect budgets             |
 | Authentication     | HTTP basic auth with UTF-8-safe encoding                                      |
 | TLS                | HTTPS via native fetch                                                        |

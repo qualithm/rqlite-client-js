@@ -30,7 +30,7 @@ function mockFetch(response: MockResponseInit): ReturnType<typeof vi.fn> {
 }
 
 function createClient(): RqliteClient {
-  return new RqliteClient({ host: "localhost:4001" })
+  return new RqliteClient({ host: "localhost:4001", clusterDiscovery: false })
 }
 
 // =============================================================================

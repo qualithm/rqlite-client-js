@@ -36,8 +36,16 @@ export type RqliteAuth = {
 
 /** Configuration for the rqlite client. */
 export type RqliteConfig = {
-  /** Host and port of the rqlite node (e.g. `"localhost:4001"`). */
+  /** Host and port of the primary rqlite node (e.g. `"localhost:4001"`). */
   host: string
+  /**
+   * Additional seed hosts to use for cluster bootstrapping (e.g. `["localhost:4003", "localhost:4005"]`).
+   *
+   * Combined with `host` to form the initial peer pool. Used when the primary host is
+   * unreachable — the client will try each seed in order before giving up.
+   * Ignored when `clusterDiscovery` is `false`.
+   */
+  hosts?: string[]
   /** Use HTTPS instead of HTTP. */
   tls?: boolean
   /** Basic authentication credentials. */
@@ -56,6 +64,17 @@ export type RqliteConfig = {
   maxRedirects?: number
   /** Base delay in milliseconds for exponential backoff between retries. Defaults to `100`. */
   retryBaseDelay?: number
+  /**
+   * Enable cluster discovery via the `/nodes` endpoint.
+   *
+   * When `true` (default), after a successful request the client refreshes its peer
+   * list by calling `/nodes` in the background. On subsequent network failures the
+   * client rotates through all known peers rather than retrying a single host.
+   *
+   * Set to `false` when a load balancer or Kubernetes service handles node selection,
+   * so the client communicates only with the configured `host`.
+   */
+  clusterDiscovery?: boolean
   /**
    * Custom `fetch` implementation to use for HTTP requests.
    *

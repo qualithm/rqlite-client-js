@@ -6,6 +6,16 @@ import { isErr, isOk } from "../../result"
 import { getFixture, mockFetchSequence, mockFetchWithFixture } from "../fixtures"
 
 // =============================================================================
+// Helpers
+// =============================================================================
+
+function createClient(
+  options?: Partial<ConstructorParameters<typeof RqliteClient>[0]>
+): RqliteClient {
+  return new RqliteClient({ host: "localhost:4001", clusterDiscovery: false, ...options })
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 
@@ -22,7 +32,7 @@ describe("fixture-based tests", () => {
   describe("execute fixtures", () => {
     it("replays create table response", async () => {
       mockFetchWithFixture("execute", "createTable")
-      const client = new RqliteClient({ host: "localhost:4001" })
+      const client = createClient()
 
       const result = await client.execute("CREATE TABLE foo (id INTEGER PRIMARY KEY)")
 
@@ -34,7 +44,7 @@ describe("fixture-based tests", () => {
 
     it("replays insert row response", async () => {
       mockFetchWithFixture("execute", "insertRow")
-      const client = new RqliteClient({ host: "localhost:4001" })
+      const client = createClient()
 
       const result = await client.execute("INSERT INTO foo VALUES(?, ?)", [1, "bar"])
 
@@ -47,7 +57,7 @@ describe("fixture-based tests", () => {
 
     it("replays batch insert response", async () => {
       mockFetchWithFixture("execute", "insertBatch")
-      const client = new RqliteClient({ host: "localhost:4001" })
+      const client = createClient()
 
       const result = await client.executeBatch([
         ["INSERT INTO foo VALUES(?, ?)", 2, "baz"],
@@ -64,7 +74,7 @@ describe("fixture-based tests", () => {
 
     it("replays SQL error response", async () => {
       mockFetchWithFixture("execute", "sqlError")
-      const client = new RqliteClient({ host: "localhost:4001" })
+      const client = createClient()
 
       const result = await client.execute("INVALID SQL")
 
@@ -79,7 +89,7 @@ describe("fixture-based tests", () => {
   describe("query fixtures", () => {
     it("replays select rows response", async () => {
       mockFetchWithFixture("query", "selectRows")
-      const client = new RqliteClient({ host: "localhost:4001" })
+      const client = createClient()
 
       const result = await client.query("SELECT * FROM users")
 
@@ -93,7 +103,7 @@ describe("fixture-based tests", () => {
 
     it("replays select count response", async () => {
       mockFetchWithFixture("query", "selectCount")
-      const client = new RqliteClient({ host: "localhost:4001" })
+      const client = createClient()
 
       const result = await client.query("SELECT COUNT(*) FROM users")
 
@@ -105,7 +115,7 @@ describe("fixture-based tests", () => {
 
     it("replays empty result response", async () => {
       mockFetchWithFixture("query", "emptyResult")
-      const client = new RqliteClient({ host: "localhost:4001" })
+      const client = createClient()
 
       const result = await client.query("SELECT * FROM users WHERE id = -1")
 
@@ -120,7 +130,7 @@ describe("fixture-based tests", () => {
   describe("error fixtures", () => {
     it("replays unauthorised response", async () => {
       mockFetchWithFixture("errors", "unauthorised")
-      const client = new RqliteClient({ host: "localhost:4001", maxRetries: 0 })
+      const client = createClient({ maxRetries: 0 })
 
       const result = await client.query("SELECT 1")
 
@@ -132,7 +142,7 @@ describe("fixture-based tests", () => {
 
     it("replays forbidden response", async () => {
       mockFetchWithFixture("errors", "forbidden")
-      const client = new RqliteClient({ host: "localhost:4001", maxRetries: 0 })
+      const client = createClient({ maxRetries: 0 })
 
       const result = await client.query("SELECT 1")
 
@@ -151,7 +161,7 @@ describe("fixture-based tests", () => {
         getFixture("errors", "leaderRedirect"),
         getFixture("execute", "insertRow")
       ])
-      const client = new RqliteClient({ host: "localhost:4001" })
+      const client = createClient()
 
       const result = await client.execute("INSERT INTO foo VALUES(1)")
 

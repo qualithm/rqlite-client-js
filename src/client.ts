@@ -66,7 +66,11 @@ export class RqliteClient {
   private readonly retryBaseDelay: number
   private readonly fetchFn: typeof fetch
   private readonly clientController: AbortController
+  private readonly clusterDiscovery: boolean
+  /** Ordered list of known peer base URLs. The primary host is always first. */
+  private peers: string[]
   private _destroyed = false
+  private _peersDiscovered = false
 
   constructor(config: RqliteConfig) {
     const scheme = config.tls === true ? "https" : "http"
@@ -81,6 +85,8 @@ export class RqliteClient {
     this.retryBaseDelay = config.retryBaseDelay ?? DEFAULT_RETRY_BASE_DELAY
     this.fetchFn = config.fetch ?? globalThis.fetch
     this.clientController = new AbortController()
+    this.clusterDiscovery = config.clusterDiscovery ?? true
+    this.peers = buildPeerList(scheme, config.host, config.hosts)
   }
 
   /** Whether this client has been destroyed. */
@@ -450,15 +456,58 @@ export class RqliteClient {
     return ok(parseNodesResponse(result.value))
   }
 
-  /** Build the full URL for a request. */
-  private buildUrl(path: string, params?: Record<string, string>): string {
-    const url = new URL(path, this.baseUrl)
-    if (params) {
-      for (const [key, value] of Object.entries(params)) {
-        url.searchParams.set(key, value)
-      }
+  /**
+   * Refresh the peer list from the `/nodes` endpoint in the background.
+   * Failures are silently ignored — discovery is best-effort.
+   */
+  private refreshPeers(baseUrl: string): void {
+    const url = buildUrl(baseUrl, "/nodes")
+    const headers: Record<string, string> = {}
+    if (this.authHeader !== undefined) {
+      headers.Authorization = this.authHeader
     }
-    return url.toString()
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => {
+      controller.abort()
+    }, this.defaultTimeout)
+
+    const cleanup = linkSignals(controller, this.clientController.signal)
+
+    this.fetchFn(url, {
+      method: "GET",
+      headers,
+      signal: controller.signal,
+      redirect: "manual"
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          return
+        }
+        const scheme = this.config.tls === true ? "https" : "http"
+        try {
+          const data = (await response.json()) as RqliteNodesResponse
+          const nodes = parseNodesResponse(data)
+          const discovered = nodes
+            .filter((n) => n.reachable && n.apiAddr.length > 0)
+            .map((n) => normaliseBaseUrl(n.apiAddr, scheme))
+          if (discovered.length > 0) {
+            // Always keep the primary host first so it's preferred.
+            const primary = this.baseUrl
+            const rest = discovered.filter((u) => u !== primary)
+            this.peers = [primary, ...rest]
+          }
+        } catch {
+          // Ignore parse errors — stale peer list is fine.
+        }
+      })
+      .catch(() => {
+        // Network error during discovery — silently ignore.
+      })
+      .finally(() => {
+        clearTimeout(timeoutId)
+        cleanup()
+      })
   }
 
   /**
@@ -484,14 +533,13 @@ export class RqliteClient {
     return ok(validated)
   }
 
-  /** Execute an HTTP request against rqlite with redirect following and retry. */
+  /** Execute an HTTP request against rqlite with redirect following, peer rotation, and retry. */
   private async request<T>(options: RequestOptions): Promise<Result<T, ClientError>> {
     if (this._destroyed) {
       return err(new ConnectionError("client is destroyed"))
     }
 
     const timeout = options.timeout ?? this.defaultTimeout
-    let url = this.buildUrl(options.path, options.params)
 
     const headers: Record<string, string> = {}
     if (this.authHeader !== undefined) {
@@ -503,12 +551,24 @@ export class RqliteClient {
 
     const bodyStr = options.body !== undefined ? JSON.stringify(options.body) : undefined
     let lastError: ClientError | undefined
-    let retries = 0
     let redirects = 0
 
-    while (retries <= this.maxRetries && redirects <= this.maxRedirects) {
-      if (retries > 0 && lastError !== undefined) {
-        await sleep(jitteredDelay(this.retryBaseDelay, retries - 1))
+    // Track which peer we are on and how many attempts we've made across all peers.
+    // Strategy: try each peer in order, up to maxRetries network failures total,
+    // advancing to the next peer after each failure.
+    const { peers } = this
+    let peerIndex = 0
+    let attemptCount = 0
+
+    // A redirect target may point outside the peer list — track it separately.
+    let redirectUrl: string | undefined
+
+    while (attemptCount <= this.maxRetries && redirects <= this.maxRedirects) {
+      const baseUrl = redirectUrl ?? peers[peerIndex % peers.length]
+      const url = buildUrl(baseUrl, options.path, options.params)
+
+      if (attemptCount > 0 && redirectUrl === undefined && lastError !== undefined) {
+        await sleep(jitteredDelay(this.retryBaseDelay, attemptCount - 1))
       }
 
       const controller = new AbortController()
@@ -533,23 +593,37 @@ export class RqliteClient {
           if (!redirectResult.ok) {
             return redirectResult
           }
-          url = redirectResult.value
-          lastError = new ConnectionError("leader redirect", { url })
+          redirectUrl = redirectResult.value
+          lastError = new ConnectionError("leader redirect", { url: redirectUrl })
           redirects++
           continue
         }
 
-        return await handleResponse<T>(response, url)
+        const result = await handleResponse<T>(response, url)
+
+        // On success, trigger background peer discovery (once only).
+        if (result.ok) {
+          redirectUrl = undefined
+          if (this.clusterDiscovery && !this._peersDiscovered) {
+            this._peersDiscovered = true
+            this.refreshPeers(baseUrl)
+          }
+        }
+
+        return result
       } catch (error) {
         lastError = mapFetchError(error, url)
-        retries++
+        redirectUrl = undefined
+        // Advance to the next peer (wrapping around), then increment attempt count.
+        peerIndex = (peerIndex + 1) % peers.length
+        attemptCount++
       } finally {
         clearTimeout(timeoutId)
         cleanup()
       }
     }
 
-    return err(lastError ?? new ConnectionError("max retries exceeded", { url }))
+    return err(lastError ?? new ConnectionError("max retries exceeded"))
   }
 
   /**
@@ -568,7 +642,6 @@ export class RqliteClient {
     }
 
     const timeout = this.defaultTimeout
-    let url = this.buildUrl(path, params)
 
     const headers: Record<string, string> = {}
     if (this.authHeader !== undefined) {
@@ -576,12 +649,19 @@ export class RqliteClient {
     }
 
     let lastError: ClientError | undefined
-    let retries = 0
     let redirects = 0
 
-    while (retries <= this.maxRetries && redirects <= this.maxRedirects) {
-      if (retries > 0 && lastError !== undefined) {
-        await sleep(jitteredDelay(this.retryBaseDelay, retries - 1))
+    const { peers } = this
+    let peerIndex = 0
+    let attemptCount = 0
+    let redirectUrl: string | undefined
+
+    while (attemptCount <= this.maxRetries && redirects <= this.maxRedirects) {
+      const baseUrl = redirectUrl ?? peers[peerIndex % peers.length]
+      const url = buildUrl(baseUrl, path, params)
+
+      if (attemptCount > 0 && redirectUrl === undefined && lastError !== undefined) {
+        await sleep(jitteredDelay(this.retryBaseDelay, attemptCount - 1))
       }
 
       const controller = new AbortController()
@@ -605,8 +685,8 @@ export class RqliteClient {
           if (!redirectResult.ok) {
             return redirectResult
           }
-          url = redirectResult.value
-          lastError = new ConnectionError("leader redirect", { url })
+          redirectUrl = redirectResult.value
+          lastError = new ConnectionError("leader redirect", { url: redirectUrl })
           redirects++
           continue
         }
@@ -626,14 +706,16 @@ export class RqliteClient {
         return ok({ ready, isLeader })
       } catch (error) {
         lastError = mapFetchError(error, url)
-        retries++
+        redirectUrl = undefined
+        peerIndex = (peerIndex + 1) % peers.length
+        attemptCount++
       } finally {
         clearTimeout(timeoutId)
         cleanup()
       }
     }
 
-    return err(lastError ?? new ConnectionError("max retries exceeded", { url }))
+    return err(lastError ?? new ConnectionError("max retries exceeded"))
   }
 }
 
@@ -651,6 +733,46 @@ export function createRqliteClient(config: RqliteConfig): RqliteClient {
 // =============================================================================
 
 type ClientError = ConnectionError | AuthenticationError | QueryError
+
+/** Build a full URL from a base URL, path, and optional query params. */
+function buildUrl(baseUrl: string, path: string, params?: Record<string, string>): string {
+  const url = new URL(path, baseUrl)
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, value)
+    }
+  }
+  return url.toString()
+}
+
+/**
+ * Normalise an `api_addr` value to a base URL using the given scheme.
+ *
+ * rqlite's `/nodes` response returns `api_addr` values that may or may not
+ * include a scheme (e.g. `"http://localhost:4001"` or `"localhost:4001"`).
+ * This ensures the result is always a valid base URL.
+ */
+function normaliseBaseUrl(apiAddr: string, scheme: string): string {
+  if (apiAddr.startsWith("http://") || apiAddr.startsWith("https://")) {
+    // Strip any trailing path so we get a clean base URL.
+    const parsed = new URL(apiAddr)
+    return `${parsed.protocol}//${parsed.host}`
+  }
+  return `${scheme}://${apiAddr}`
+}
+
+/**
+ * Build the initial ordered peer list from the primary host and optional seed hosts.
+ * The primary host is always first.
+ */
+function buildPeerList(scheme: string, host: string, extraHosts?: string[]): string[] {
+  const primary = `${scheme}://${host}`
+  if (extraHosts === undefined || extraHosts.length === 0) {
+    return [primary]
+  }
+  const extras = extraHosts.map((h) => normaliseBaseUrl(h, scheme)).filter((u) => u !== primary)
+  return [primary, ...extras]
+}
 
 /** Encode basic auth credentials as a header value (UTF-8 safe). */
 function encodeBasicAuth(auth: RqliteAuth): string {
@@ -707,6 +829,7 @@ function linkSignals(target: AbortController, ...signals: (AbortSignal | undefin
 
 /** Sleep for the given number of milliseconds. */
 async function sleep(ms: number): Promise<void> {
+  if (ms <= 0) return
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
