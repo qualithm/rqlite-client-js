@@ -257,6 +257,53 @@ describe("Cluster Discovery", () => {
       await vi.runAllTimersAsync()
     })
 
+    it("silently ignores non-ok /nodes response during discovery", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(createMockResponse(successResponse()))
+        .mockResolvedValueOnce(createMockResponse({ ok: false, status: 503 })) // /nodes returns 503
+      vi.stubGlobal("fetch", fetchMock)
+
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        clusterDiscovery: true
+      })
+
+      // Should not throw even when /nodes returns non-ok
+      await expect(client.execute("INSERT INTO foo VALUES(1)")).resolves.toBeDefined()
+      await vi.runAllTimersAsync()
+
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it("aborts discovery request when timeout fires", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(createMockResponse(successResponse()))
+        .mockImplementationOnce(async (_url: string, init: RequestInit) => {
+          // Hang until the signal fires
+          return new Promise((_resolve, reject) => {
+            const signal = init.signal!
+            signal.addEventListener("abort", () => {
+              reject(new DOMException("Aborted", "AbortError"))
+            })
+          })
+        })
+      vi.stubGlobal("fetch", fetchMock)
+
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        clusterDiscovery: true,
+        timeout: 100
+      })
+
+      // Should not throw — discovery is fire-and-forget
+      await expect(client.execute("INSERT INTO foo VALUES(1)")).resolves.toBeDefined()
+
+      // Advance past the discovery timeout so controller.abort() fires
+      await vi.advanceTimersByTimeAsync(200)
+    })
+
     it("updates peer list after discovery", async () => {
       const nodesData = {
         "1": {

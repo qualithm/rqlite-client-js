@@ -289,6 +289,40 @@ describe("RqliteClient queryPaginated", () => {
     expect(url).toContain("level=strong")
   })
 
+  it("forwards freshness, associative, timeout, and signal options to query", async () => {
+    const fetchMock = mockFetch({
+      ok: true,
+      status: 200,
+      data: {
+        results: [
+          {
+            columns: ["id"],
+            types: ["integer"],
+            values: [],
+            time: 0.001
+          }
+        ]
+      }
+    })
+
+    const controller = new AbortController()
+    const client = createClient()
+
+    for await (const _page of client.queryPaginated("SELECT id FROM t", [], {
+      pageSize: 10,
+      freshness: { freshness: "2s" },
+      associative: true,
+      timeout: 5000,
+      signal: controller.signal
+    })) {
+      // consume
+    }
+
+    const url = fetchMock.mock.calls[0][0] as string
+    expect(url).toContain("freshness=2s")
+    expect(url).toContain("associative=")
+  })
+
   it("handles partial last page", async () => {
     mockFetchSequence([
       // Page 1: 4 rows returned (3+1) → hasMore

@@ -829,7 +829,9 @@ function linkSignals(target: AbortController, ...signals: (AbortSignal | undefin
 
 /** Sleep for the given number of milliseconds. */
 async function sleep(ms: number): Promise<void> {
-  if (ms <= 0) return
+  if (ms <= 0) {
+    return
+  }
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
