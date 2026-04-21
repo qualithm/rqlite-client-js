@@ -3,7 +3,6 @@
 ## General
 
 - Use TypeScript with strict mode
-- British spelling in user-facing strings (e.g. "unauthorised", "colour")
 - Lowercase error messages with no trailing punctuation
 - Run linting and type checking before committing
 
