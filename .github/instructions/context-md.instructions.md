@@ -43,13 +43,6 @@ When conflict detected: CONTEXT.md is correct. Update the other source.
 **Sentence 1**: `[Type] [technology] for [runtime/platform].` **Sentence 2**:
 `Implements/Provides [specific protocols/capabilities] for [use cases].`
 
-Examples:
-
-- "Rust framework for building data infrastructure on Apache Arrow Flight. Implements the Arrow
-  Flight and Flight SQL protocols with pluggable storage, authentication, and query execution."
-- "Native Apache Kafka client for JavaScript and TypeScript runtimes. Implements the Kafka binary
-  protocol directly for producing, consuming, and administering Kafka clusters."
-
 ## Current Reality Rules
 
 - Listed = complete (no status columns)
