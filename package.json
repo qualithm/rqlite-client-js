@@ -1,6 +1,6 @@
 {
   "name": "@qualithm/rqlite-client",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Native rqlite client for JavaScript and TypeScript runtimes.",
   "private": false,
   "type": "module",
