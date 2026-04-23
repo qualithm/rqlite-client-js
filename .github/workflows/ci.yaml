@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [ main, test ]
+    branches: [main, test]
     paths-ignore:
       - ".vscode/**"
       - "**/*.md"
@@ -63,7 +63,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        bun-version: [ "1.3", "latest" ]
+        bun-version: ["1.3", "latest"]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -84,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [ "20", "22" ]
+        node-version: ["20", "22"]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
