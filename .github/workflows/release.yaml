@@ -1,10 +1,8 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
+  push:
+    branches: [ main ]
   workflow_dispatch: {}
 
 concurrency:
@@ -20,9 +18,6 @@ jobs:
   publish-npm:
     name: Publish to npm
     runs-on: ubuntu-24.04
-    if:
-      ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion ==
-      'success' }}
     environment:
       name: npm
     permissions:
@@ -47,13 +42,6 @@ jobs:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Debug OIDC
-        run: |
-          echo "Repository: ${{ github.repository }}"
-          echo "Workflow ref: ${{ github.workflow_ref }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "npm version: $(npm --version)"
-
       - name: Check if version exists on npm
         id: version_check
         run: |
@@ -76,9 +64,6 @@ jobs:
   deploy-docs:
     name: Deploy Docs
     runs-on: ubuntu-24.04
-    if:
-      ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion ==
-      'success' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
