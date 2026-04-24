@@ -49,8 +49,12 @@ jobs:
         continue-on-error: true
         run: |
           git checkout development
-          git rebase origin/main
-          git push --force-with-lease origin development
+          if git merge-base --is-ancestor origin/development origin/main; then
+            echo "development is already an ancestor of main, no rebase needed"
+          else
+            git rebase origin/main
+            git push --force-with-lease origin development
+          fi
 
       # When test is updated: rebase development onto test.
       - name: Rebase development onto test
@@ -59,8 +63,12 @@ jobs:
         continue-on-error: true
         run: |
           git checkout development
-          git rebase origin/test
-          git push --force-with-lease origin development
+          if git merge-base --is-ancestor origin/development origin/test; then
+            echo "development is already an ancestor of test, no rebase needed"
+          else
+            git rebase origin/test
+            git push --force-with-lease origin development
+          fi
 
       - name: Open issue on rebase conflict
         if: |
