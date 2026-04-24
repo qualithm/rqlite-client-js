@@ -66,7 +66,7 @@ jobs:
         if: |
           steps.rebase-dev-main.outcome == 'failure' ||
           steps.rebase-dev-test.outcome == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const base = context.ref.replace('refs/heads/', '');
@@ -89,6 +89,9 @@ jobs:
                 `Triggered by push to \`${base}\` — commit: ${context.sha}`,
               ].join('\n'),
               labels: ['branch-sync'],
+              headers: {
+                'X-GitHub-Api-Version': '2022-11-28',
+              },
             });
 
       - name: Fail if rebase did not succeed
