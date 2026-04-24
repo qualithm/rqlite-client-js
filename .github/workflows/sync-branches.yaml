@@ -89,6 +89,9 @@ jobs:
                 `Triggered by push to \`${base}\` — commit: ${context.sha}`,
               ].join('\n'),
               labels: ['branch-sync'],
+              headers: {
+                'X-GitHub-Api-Version': '2022-11-28',
+              },
             });
 
       - name: Fail if rebase did not succeed
