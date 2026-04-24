@@ -2,7 +2,7 @@ name: Sync Branches
 
 on:
   push:
-    branches: [ main, test ]
+    branches: [main, test]
   workflow_dispatch: {}
 
 concurrency:
