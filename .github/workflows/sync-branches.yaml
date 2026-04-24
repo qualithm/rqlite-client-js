@@ -17,6 +17,7 @@ jobs:
   sync:
     name: Sync downstream branches
     runs-on: ubuntu-24.04
+    if: github.actor != 'github-actions[bot]'
     steps:
       - name: Generate GitHub App token
         id: app-token
