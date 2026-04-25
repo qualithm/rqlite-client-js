@@ -50,7 +50,7 @@ jobs:
         continue-on-error: true
         run: |
           git checkout development
-          if git merge-base --is-ancestor origin/development origin/main; then
+          if git merge-base --is-ancestor origin/main origin/development; then
             echo "development is already an ancestor of main, no rebase needed"
           else
             git rebase origin/main
@@ -64,7 +64,7 @@ jobs:
         continue-on-error: true
         run: |
           git checkout development
-          if git merge-base --is-ancestor origin/development origin/test; then
+          if git merge-base --is-ancestor origin/test origin/development; then
             echo "development is already an ancestor of test, no rebase needed"
           else
             git rebase origin/test
