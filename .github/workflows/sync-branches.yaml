@@ -1,0 +1,67 @@
+name: Sync Branches
+
+on:
+  push:
+    branches: [main, test]
+  workflow_dispatch: {}
+
+concurrency:
+  group: sync-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync downstream branches
+    runs-on: ubuntu-24.04
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # When main is updated: reset test and development to main.
+      - name: Reset test to main
+        if: github.ref_name == 'main'
+        run: |
+          git checkout test
+          git reset --hard origin/main
+          git push --force-with-lease origin test
+
+      - name: Reset development to main
+        if: github.ref_name == 'main'
+        run: |
+          git checkout development
+          if git diff --quiet origin/main origin/development; then
+            git reset --hard origin/main
+            git push --force-with-lease origin development
+          else
+            echo "development has new content ahead of main — skipping reset to preserve in-progress work"
+          fi
+
+      # When test is updated: reset development to test.
+      - name: Reset development to test
+        if: github.ref_name == 'test'
+        run: |
+          git checkout development
+          if git diff --quiet origin/test origin/development; then
+            git reset --hard origin/test
+            git push --force-with-lease origin development
+          else
+            echo "development has new content ahead of test — skipping reset to preserve in-progress work"
+          fi
