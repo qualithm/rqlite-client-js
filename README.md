@@ -1,6 +1,6 @@
 # Rqlite Client
 
-[![CI](https://github.com/qualithm/rqlite-client-js/actions/workflows/ci.yaml/badge.svg)](https://github.com/qualithm/rqlite-client-js/actions/workflows/ci.yaml)
+[![CI](https://github.com/qualithm/rqlite-client-js/actions/workflows/ci.yaml/badge.svg?event=pull_request)](https://github.com/qualithm/rqlite-client-js/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/gh/qualithm/rqlite-client-js/graph/badge.svg)](https://codecov.io/gh/qualithm/rqlite-client-js)
 [![npm](https://img.shields.io/npm/v/@qualithm/rqlite-client)](https://www.npmjs.com/package/@qualithm/rqlite-client)
 
