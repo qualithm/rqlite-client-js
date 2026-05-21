@@ -1,0 +1,14 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+        threshold: 1%
+ignore:
+  - "src/__tests__/**"
+  - "**/*.test.ts"
+  - "**/*.bench.ts"
