@@ -1,6 +1,13 @@
 name: CI
 
 on:
+  push:
+    branches: [main, test]
+    paths-ignore:
+      - ".vscode/**"
+      - "**/*.md"
+      - "docker/**"
+      - "LICENSE"
   pull_request:
     branches: [main, test]
     paths-ignore:
@@ -155,7 +162,16 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Run unit tests with coverage
         run: bun run test:coverage:unit
+      - name: Enforce coverage threshold (>=80%)
+        run: |
+          awk '/^LF:/ {lf+=substr($0,4)} /^LH:/ {lh+=substr($0,4)} END {
+            if (lf == 0) { print "No LF records in lcov.info"; exit 1 }
+            pct = (lh / lf) * 100
+            printf "Line coverage: %.2f%% (%d/%d)\n", pct, lh, lf
+            if (pct + 0 < 80) { print "Coverage below 80% threshold"; exit 1 }
+          }' coverage/lcov.info
       - name: Upload coverage to Codecov
+        if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
