@@ -1,0 +1,81 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommits",
+    ":timezone(Etc/UTC)",
+    "schedule:weekly"
+  ],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 4,
+  "rangeStrategy": "bump",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+  "github-actions": {
+    "pinDigests": true
+  },
+  "docker": {
+    "pinDigests": true
+  },
+  "packageRules": [
+    {
+      "description": "Group all GitHub Actions updates into one PR",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "schedule": ["before 6am on monday"]
+    },
+    {
+      "description": "Group all Docker image digest refreshes",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "matchUpdateTypes": ["digest", "pinDigest"],
+      "groupName": "docker-digests",
+      "schedule": ["before 6am on monday"]
+    },
+    {
+      "description": "Auto-merge digest-only updates after CI",
+      "matchUpdateTypes": ["digest", "pinDigest", "lockFileMaintenance"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Keep Cargo ranges loose for libraries (do not pin)",
+      "matchManagers": ["cargo"],
+      "rangeStrategy": "widen"
+    },
+    {
+      "description": "Group minor + patch Rust deps",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "rust-deps-non-major"
+    },
+    {
+      "description": "Group minor + patch JS deps",
+      "matchManagers": ["npm", "bun"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "js-deps-non-major"
+    },
+    {
+      "description": "Group minor + patch Go deps",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "go-deps-non-major"
+    },
+    {
+      "description": "Separate major upgrades per package",
+      "matchUpdateTypes": ["major"],
+      "groupName": null
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "schedule": ["at any time"],
+    "prCreation": "immediate"
+  },
+  "osvVulnerabilityAlerts": true
+}
