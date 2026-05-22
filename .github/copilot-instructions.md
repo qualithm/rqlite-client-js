@@ -81,3 +81,10 @@ import type { User, Session } from "../types"
 - Place tests in `__tests__` directories or as `.test.ts` files
 - Use descriptive test names that explain the behaviour
 - Test edge cases and error conditions
+
+## CI & Branch Protection
+
+The `.github/workflows/ci.yaml` file is generated centrally and kept consistent across all Qualithm
+repos. Do not edit it directly — propose template changes through the standard process. Branch
+rulesets enforce a single required status check named `CI Required`, supplied by the umbrella job at
+the end of the workflow.
