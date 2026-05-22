@@ -1,6 +1,13 @@
 name: CI
 
 on:
+  push:
+    branches: [main, test]
+    paths-ignore:
+      - ".vscode/**"
+      - "**/*.md"
+      - "docker/**"
+      - "LICENSE"
   pull_request:
     branches: [main, test]
     paths-ignore:
@@ -164,6 +171,7 @@ jobs:
             if (pct + 0 < 80) { print "Coverage below 80% threshold"; exit 1 }
           }' coverage/lcov.info
       - name: Upload coverage to Codecov
+        if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
