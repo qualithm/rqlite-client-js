@@ -40,8 +40,12 @@ jobs:
         if: github.ref_name == 'main'
         run: |
           git checkout test
-          git reset --hard origin/main
-          git push --force-with-lease origin test
+          if git diff --quiet origin/main origin/test; then
+            echo "test already matches main — skipping (avoids hash-only force push)"
+          else
+            git reset --hard origin/main
+            git push --force-with-lease origin test
+          fi
 
       - name: Reset development to main
         if: github.ref_name == 'main'
