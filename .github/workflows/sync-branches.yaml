@@ -35,19 +35,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # Align downstream branches to main only when content actually differs.
-      # Hash-only realignment (e.g. after a squash-merge produces a new hash for
-      # the same tree) is skipped so local clones don't see spurious divergence.
+      # Keep test branch ancestry aligned with main to avoid cumulative merge commits.
       - name: Reset test to main
         if: github.ref_name == 'main'
         run: |
           git checkout test
-          if git diff --quiet origin/main origin/test; then
-            echo "test already matches main — skipping (avoids hash-only force push)"
-          else
-            git reset --hard origin/main
-            git push --force-with-lease origin test
-          fi
+          git reset --hard origin/main
+          git push --force-with-lease origin test
 
       - name: Reset development to main
         if: github.ref_name == 'main'
