@@ -391,6 +391,6 @@ bun run bench
 The package is automatically published to NPM when CI passes on main. Update the version in
 `package.json` before merging to trigger a new release.
 
-## Licence
+## License
 
 Apache-2.0

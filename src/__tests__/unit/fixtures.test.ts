@@ -128,8 +128,8 @@ describe("fixture-based tests", () => {
   })
 
   describe("error fixtures", () => {
-    it("replays unauthorised response", async () => {
-      mockFetchWithFixture("errors", "unauthorised")
+    it("replays unauthorized response", async () => {
+      mockFetchWithFixture("errors", "unauthorized")
       const client = createClient({ maxRetries: 0 })
 
       const result = await client.query("SELECT 1")

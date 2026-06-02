@@ -167,9 +167,9 @@
     }
   },
   "errors": {
-    "unauthorised": {
+    "unauthorized": {
       "status": 401,
-      "body": "unauthorised"
+      "body": "unauthorized"
     },
     "forbidden": {
       "status": 403,

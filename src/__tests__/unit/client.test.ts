@@ -161,7 +161,7 @@ describe("RqliteClient", () => {
       expect(isErr(result)).toBe(true)
       if (!result.ok) {
         expect(AuthenticationError.isError(result.error)).toBe(true)
-        expect(result.error.message).toBe("unauthorised")
+        expect(result.error.message).toBe("unauthorized")
       }
     })
 

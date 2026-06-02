@@ -43,7 +43,7 @@ async function main(): Promise<void> {
   if (aborted.ok) {
     console.log("  Query completed before abort")
   } else {
-    console.log(`  Request cancelled: ${aborted.error.message}`)
+    console.log(`  Request canceled: ${aborted.error.message}`)
   }
 
   // --- Timeout: per-request timeout override ---
