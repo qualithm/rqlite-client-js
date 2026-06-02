@@ -692,7 +692,7 @@ export class RqliteClient {
         }
 
         if (response.status === 401) {
-          return err(new AuthenticationError("unauthorised"))
+          return err(new AuthenticationError("unauthorized"))
         }
 
         if (response.status === 403) {
@@ -846,7 +846,7 @@ function jitteredDelay(baseDelay: number, attempt: number): number {
 /** Handle a fetch Response and map to Result. */
 async function handleResponse<T>(response: Response, url: string): Promise<Result<T, ClientError>> {
   if (response.status === 401) {
-    return err(new AuthenticationError("unauthorised"))
+    return err(new AuthenticationError("unauthorized"))
   }
 
   if (response.status === 403) {

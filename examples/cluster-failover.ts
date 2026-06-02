@@ -90,7 +90,7 @@ async function main(): Promise<void> {
   const lbReady = await lbClient.ready()
   console.log(`  Load balancer ready: ${String(lbReady.ok ? lbReady.value.ready : false)}`)
 
-  // Demonstrate retry behaviour on connection failure
+  // Demonstrate retry behavior on connection failure
   console.log("\n--- Retry on failure ---")
   const unreachable = createRqliteClient({
     host: "localhost:9999",
