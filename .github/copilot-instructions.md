@@ -20,7 +20,7 @@
 
 Any code change should include review of:
 
-- **Tests** - update existing tests, add new tests for new behaviour
+- **Tests** - update existing tests, add new tests for new behavior
 - **Types** - update type definitions if data shapes change
 - **Documentation** - update comments if public API changes
 - **Error messages** - ensure they remain accurate and helpful
@@ -79,7 +79,7 @@ import type { User, Session } from "../types"
 ## Testing
 
 - Place tests in `__tests__` directories or as `.test.ts` files
-- Use descriptive test names that explain the behaviour
+- Use descriptive test names that explain the behavior
 - Test edge cases and error conditions
 
 ## CI & Branch Protection

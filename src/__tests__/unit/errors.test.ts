@@ -112,8 +112,8 @@ describe("QueryError", () => {
 
 describe("AuthenticationError", () => {
   it("creates an error with a message", () => {
-    const error = new AuthenticationError("unauthorised")
-    expect(error.message).toBe("unauthorised")
+    const error = new AuthenticationError("unauthorized")
+    expect(error.message).toBe("unauthorized")
     expect(error.name).toBe("AuthenticationError")
     expect(error.tag).toBe("AuthenticationError")
     expect(error).toBeInstanceOf(Error)
