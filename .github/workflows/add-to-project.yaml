@@ -1,0 +1,19 @@
+name: Add to Engineering board
+on:
+  issues:
+    types: [opened]
+permissions: {}
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
+        id: app
+        with:
+          app-id: ${{ secrets.PROJECTS_GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PROJECTS_GH_APP_PRIVATE_KEY }}
+          owner: qualithm
+      - uses: actions/add-to-project@244f685bbc3b7adfa8466e08b698b5577571133e # v1.0.2
+        with:
+          project-url: https://github.com/orgs/qualithm/projects/3
+          github-token: ${{ steps.app.outputs.token }}
