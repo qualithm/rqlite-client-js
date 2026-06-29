@@ -1,0 +1,41 @@
+name: Work item
+description: Standard format for any pickable work item on the Engineering board.
+title: "<repo/area>: <imperative summary>"
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One uniform format so any work can be picked up cold. Set **Initiative**, **Phase**, **Size**,
+        and **Status** on the Engineering board after opening. Keep the running state in **comments**
+        (end each session with a `**Snapshot** — Done / In progress / Next / Blockers` note).
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: One paragraph — the durable reason this exists (the problem it solves).
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope / contract
+      description: What's in, what's explicitly out, and any load-bearing invariants.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance
+      description: Checklist that defines Done.
+      value: |
+        - [ ] …
+    validations:
+      required: true
+  - type: textarea
+    id: links
+    attributes:
+      label: Links
+      description: Initiative, related issues, and code paths.
+    validations:
+      required: false
