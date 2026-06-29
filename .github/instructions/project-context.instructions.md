@@ -12,10 +12,11 @@ only the map to them.
 ## Where context lives
 
 - **`README.md`** (this repo) — _what_ it is and _how_ to use it. No plan or status.
-- **Engineering board** (org GitHub Projects) — _the plan and live state_. Every work item is a
+- **Engineering board** (org GitHub Projects **#3**) — _the plan and live state_. Every work item is a
   flat, pickable issue grouped by `Initiative` + `Status`; the **running snapshot lives in the
-  issue's comments**. Inspect with `dx project board [number]` (filter `--initiative <name>`). The
-  pickup queue is `Status: Ready, no assignee`.
+  issue's comments**. Inspect with `dx project board 3` (filter `--initiative <name>`). The pickup
+  queue is `Status: Ready, no assignee`; claim by self-assigning + setting `In progress` (one at a
+  time).
 - **🧭 Decisions** (org GitHub Discussions, Decisions category) — _why_: durable architecture
   decisions (ADRs), one per post — what was chosen, why, alternatives rejected.
 - **Cross-cutting initiatives** — `dx/initiatives/<name>.md` (start at `index.md`): efforts spanning
