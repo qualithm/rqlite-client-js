@@ -12,8 +12,8 @@ only the map to them.
 ## Where context lives
 
 - **`README.md`** (this repo) — _what_ it is and _how_ to use it. No plan or status.
-- **Engineering board** (org GitHub Projects **#3**) — _the plan and live state_. Every work item is a
-  flat, pickable issue grouped by `Initiative` + `Status`; the **running snapshot lives in the
+- **Engineering board** (org GitHub Projects **#3**) — _the plan and live state_. Every work item is
+  a flat, pickable issue grouped by `Initiative` + `Status`; the **running snapshot lives in the
   issue's comments**. Inspect with `dx project board 3` (filter `--initiative <name>`). The pickup
   queue is `Status: Ready, no assignee`; claim by self-assigning + setting `In progress` (one at a
   time).
