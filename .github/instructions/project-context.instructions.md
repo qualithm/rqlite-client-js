@@ -18,15 +18,15 @@ only the map to them.
   queue is `Status: Ready, no assignee`; claim by self-assigning + setting `In progress` (one at a
   time).
 - **🧭 Decisions** (org GitHub Discussions, Decisions category) — _why_: durable architecture
-  decisions (ADRs), one per post — what was chosen, why, alternatives rejected.
-- **Cross-cutting initiatives** — `dx/initiatives/<name>.md` (start at `index.md`): efforts spanning
-  repos, linking the board and Discussions.
+  decisions, one per post — what was chosen, why, alternatives rejected.
+- **Initiatives** — a board `Initiative` value groups a cross-cutting effort; its narrative lives in
+  the initiative's tracking issue (filter `dx project board 3 --initiative <name>`).
 
 ## How to use it
 
 - **"What's the status / what's next?"** → the board (issue + its latest comment); for a cross-repo
-  effort, `dx/initiatives/<x>.md`.
-- **Before changing settled design** → search 🧭 Decisions for the relevant ADR; it records the
+  effort, filter by its `Initiative`.
+- **Before changing settled design** → search 🧭 Decisions for the relevant decision; it records the
   alternatives already rejected, so you don't relitigate them.
 - **End each session** → update the issue: set `Status` and post a
   `**Snapshot** — Done / In progress / Next / Blockers` comment. When a decision crystallizes, open
