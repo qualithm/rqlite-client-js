@@ -16,9 +16,11 @@ only the map to them.
   a flat, pickable issue grouped by `Initiative` + `Status`; the **running snapshot lives in the
   issue's comments**. Inspect with `dx project board 3` (filter `--initiative <name>`). The pickup
   queue is `Status: Ready, no assignee`; claim by self-assigning + setting `In progress` (one at a
-  time).
+  time). Issue bodies follow the work-item form (`### Why` / `### Scope / contract` /
+  `### Acceptance` / `### Links`); `dx project lint` flags any that drift from it.
 - **🧭 Decisions** (org GitHub Discussions, Decisions category) — _why_: durable architecture
-  decisions, one per post — what was chosen, why, alternatives rejected.
+  decisions, one per post — what was chosen, why, alternatives rejected. List recent ones with
+  `dx decision list`.
 - **Initiatives** — a board `Initiative` value groups a cross-cutting effort; its narrative lives in
   the initiative's tracking issue (filter `dx project board 3 --initiative <name>`). Add a new
   initiative with `dx project initiative add "<name>"` — never edit the single-select field by hand
@@ -35,6 +37,8 @@ only the map to them.
   with
   `dx project snapshot <issue> --repo <owner/name> --done … --in-progress … --next … --blockers …`
   (each flag repeatable) — the command owns the exact format, so don't hand-write the comment.
-  Omitted sections render `- none`. When a decision crystallizes, open a Decisions discussion.
+  Omitted sections render `- none`. When a decision crystallizes, post it with
+  `dx decision add --title … --body-file …` (or `--status/--context/--decision/--consequences …`) —
+  the command owns the canonical form, and `dx decision lint` flags any that drift from it.
 - **Link, don't duplicate.** The agent-only memory log is a scratch mirror, not the system of record
   — promote durable facts to the board (state) or Discussions (why).
