@@ -50,19 +50,35 @@ jobs:
         if: github.ref_name == 'main'
         run: |
           git checkout development
-          before=$(git rev-parse development)
-          if git rebase origin/main; then
-            # Commits already in main (e.g. via squash) drop out as patch-equivalent,
-            # so development's base stops rotting while genuinely-new work is preserved.
-            if [ "$before" = "$(git rev-parse development)" ]; then
+          # A squash merge collapses a PR's N commits into one, so the promoted
+          # commits are NOT patch-equivalent to any single development commit and a
+          # plain rebase cannot drop them — it conflicts, aborts, and leaves
+          # development to accumulate. When the squash has drained development (its
+          # tree now matches main) adopt main's clean linear history outright; only
+          # genuinely-unpromoted work (differing trees) is preserved via rebase, and
+          # because the drained case keeps development linear that rebase no longer
+          # trips over stale merge commits.
+          if git diff --quiet origin/main development; then
+            if [ "$(git rev-parse development)" = "$(git rev-parse origin/main)" ]; then
               echo "development already aligned with main — nothing to push"
             else
+              git reset --hard origin/main
               git push --force-with-lease origin development
-              echo "development realigned onto main"
+              echo "development reset onto main (identical trees)"
             fi
           else
-            git rebase --abort
-            echo "development conflicts with main — left untouched for manual resolution"
+            before=$(git rev-parse development)
+            if git rebase origin/main; then
+              if [ "$before" = "$(git rev-parse development)" ]; then
+                echo "development already aligned with main — nothing to push"
+              else
+                git push --force-with-lease origin development
+                echo "development realigned onto main"
+              fi
+            else
+              git rebase --abort
+              echo "development conflicts with main — left untouched for manual resolution"
+            fi
           fi
 
       # When test advances, realign development onto it so its base does not rot.
@@ -70,17 +86,33 @@ jobs:
         if: github.ref_name == 'test'
         run: |
           git checkout development
-          before=$(git rev-parse development)
-          if git rebase origin/test; then
-            # Commits already in test (e.g. via squash) drop out as patch-equivalent,
-            # so development's base stops rotting while genuinely-new work is preserved.
-            if [ "$before" = "$(git rev-parse development)" ]; then
+          # A squash merge collapses a PR's N commits into one, so the promoted
+          # commits are NOT patch-equivalent to any single development commit and a
+          # plain rebase cannot drop them — it conflicts, aborts, and leaves
+          # development to accumulate. When the squash has drained development (its
+          # tree now matches test) adopt test's clean linear history outright; only
+          # genuinely-unpromoted work (differing trees) is preserved via rebase, and
+          # because the drained case keeps development linear that rebase no longer
+          # trips over stale merge commits.
+          if git diff --quiet origin/test development; then
+            if [ "$(git rev-parse development)" = "$(git rev-parse origin/test)" ]; then
               echo "development already aligned with test — nothing to push"
             else
+              git reset --hard origin/test
               git push --force-with-lease origin development
-              echo "development realigned onto test"
+              echo "development reset onto test (identical trees)"
             fi
           else
-            git rebase --abort
-            echo "development conflicts with test — left untouched for manual resolution"
+            before=$(git rev-parse development)
+            if git rebase origin/test; then
+              if [ "$before" = "$(git rev-parse development)" ]; then
+                echo "development already aligned with test — nothing to push"
+              else
+                git push --force-with-lease origin development
+                echo "development realigned onto test"
+              fi
+            else
+              git rebase --abort
+              echo "development conflicts with test — left untouched for manual resolution"
+            fi
           fi
