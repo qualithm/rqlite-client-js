@@ -20,7 +20,10 @@ only the map to them.
 - **🧭 Decisions** (org GitHub Discussions, Decisions category) — _why_: durable architecture
   decisions, one per post — what was chosen, why, alternatives rejected.
 - **Initiatives** — a board `Initiative` value groups a cross-cutting effort; its narrative lives in
-  the initiative's tracking issue (filter `dx project board 3 --initiative <name>`).
+  the initiative's tracking issue (filter `dx project board 3 --initiative <name>`). Add a new
+  initiative with `dx project initiative add "<name>"` — never edit the single-select field by hand
+  or via a raw `updateProjectV2Field` mutation, which recreates the options with new ids and
+  silently clears the `Initiative` value on every existing item.
 
 ## How to use it
 
@@ -28,8 +31,10 @@ only the map to them.
   effort, filter by its `Initiative`.
 - **Before changing settled design** → search 🧭 Decisions for the relevant decision; it records the
   alternatives already rejected, so you don't relitigate them.
-- **End each session** → update the issue: set `Status` and post a
-  `**Snapshot** — Done / In progress / Next / Blockers` comment. When a decision crystallizes, open
-  a Decisions discussion.
+- **End each session** → update the issue: set `Status` and post a Snapshot comment. Always post it
+  with
+  `dx project snapshot <issue> --repo <owner/name> --done … --in-progress … --next … --blockers …`
+  (each flag repeatable) — the command owns the exact format, so don't hand-write the comment.
+  Omitted sections render `- none`. When a decision crystallizes, open a Decisions discussion.
 - **Link, don't duplicate.** The agent-only memory log is a scratch mirror, not the system of record
   — promote durable facts to the board (state) or Discussions (why).
