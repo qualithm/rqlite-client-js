@@ -50,6 +50,12 @@ Improves UX for returning users.
   - `BREAKING CHANGE:` short description of the change
   - `Closes/Fixes/Refs:` issue references (e.g. `Closes #123`)
 
+**Board issues:** when a commit advances an engineering-board issue, add a `Refs: #N` trailer (one
+issue per line for several). The `git-merge` promotion script harvests these from the promoted
+commit range and self-documents the promotion PRs — as `Closes #N` on the hop into the default
+branch (so the issue auto-closes on release) and `Refs #N` on intermediate hops. Use `Closes: #N` in
+the commit itself only when merging that commit directly should close the issue.
+
 **Example**
 
 ```
