@@ -41,7 +41,7 @@ only the map to them.
   without claiming it. If the work embodies a design choice rather than an obvious continuation,
   post it with `dx decision add` **before** implementing — the rationale should precede the code,
   not document it after the fact.
-- **When to create a new Initiative vs. reuse one vs. just file a flat issue.** Default to *not*
+- **When to create a new Initiative vs. reuse one vs. just file a flat issue.** Default to _not_
   creating one — a single well-scoped issue never needs its own Initiative, and a small addition to
   existing work belongs under whichever Initiative it naturally extends. Spin up a new Initiative
   once a body of work has actually earned independent tracking: roughly three or more
