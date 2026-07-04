@@ -6,6 +6,8 @@ name: Sync Branches
 on:
   push:
     branches: [main, test]
+  pull_request:
+    branches: [test, main]
   workflow_dispatch: {}
 
 concurrency:
@@ -16,6 +18,26 @@ permissions:
   contents: write
 
 jobs:
+  guard:
+    name: Source Branch
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Enforce promotion path
+        run: |
+          base="${{ github.base_ref }}"
+          head="${{ github.head_ref }}"
+          case "$base" in
+            test) allowed="development" ;;
+            main) allowed="test" ;;
+            *) echo "::error::unhandled base branch $base"; exit 1 ;;
+          esac
+          if [[ "$head" != "$allowed" ]]; then
+            echo "::error::PRs into $base must come from $allowed, not $head"
+            exit 1
+          fi
   sync:
     name: Sync downstream branches
     runs-on: ubuntu-24.04
