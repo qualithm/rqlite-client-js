@@ -1,0 +1,42 @@
+---
+description: "Rules for writing pull request titles and descriptions"
+---
+
+# Pull Request Guidelines
+
+The title and body follow the exact same rules `dx git merge` uses to synthesize its automated
+promotion PRs (see `synthesize_pr` in [scripts/git-merge](../../scripts/git-merge)) — so a PR looks
+the same whether a human opens it or the promotion script does.
+
+## Title
+
+- If the PR carries exactly **one commit**, reuse that commit's header verbatim as the PR title (it
+  already follows the Conventional Commit format from `commit.instructions.md`).
+- Otherwise: for a branch-promotion PR use `Promote <from> → <to> (<N> commits)`; for any other
+  multi-commit PR, write a concise imperative summary of the change — same tone and casing as a
+  commit subject (lowercase, no trailing period).
+
+## Body
+
+```
+<one-line summary of what the PR does> (<N> commit<s>).
+
+- <commit 1 subject>
+- <commit 2 subject>
+...
+
+Closes #123
+Refs #456
+```
+
+- **First line:** one sentence describing what's being merged and how many commits it carries.
+- **Blank line, then one bullet per commit** in the range being merged (oldest first) — its subject
+  line, verbatim.
+- **Blank line, then harvested issue references** — one per line:
+  - Scan every commit subject/body in the range for `Close[sd]?`, `Fix(e[sd])?`, `Resolve[sd]?`, or
+    `Refs?` (case-insensitive, with or without a trailing colon) followed by `#123` or
+    `owner/repo#123`. De-duplicate, first-seen order.
+  - Emit as `Closes #N` when the PR's base branch is the repo's default branch (so the issue
+    auto-closes on merge); emit as `Refs #N` for every other base branch (so the reference is
+    visible without prematurely closing anything).
+- Omit the references block entirely if no issues were referenced in the range. </content>

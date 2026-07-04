@@ -31,6 +31,16 @@ only the map to them.
 
 - **"What's the status / what's next?"** → the board (issue + its latest comment); for a cross-repo
   effort, filter by its `Initiative`.
+- **Before starting non-trivial work** → find or create the board issue first; don't let code get
+  ahead of the plan. Check `dx project board 3` (filter `--initiative <name>`) for an existing
+  pickable issue. If none exists, open one following the work-item form (`### Why` /
+  `### Scope / contract` / `### Acceptance` / `### Links`) and add it with
+  `dx project add 3 --url <issue-url>`. Group cross-repo or multi-step efforts under an `Initiative`
+  — `dx project initiative add "<name>"` if it doesn't exist yet. Self-assign and set
+  `Status: In progress` before writing code; never start against `Status: Ready, no assignee`
+  without claiming it. If the work embodies a design choice rather than an obvious continuation,
+  post it with `dx decision add` **before** implementing — the rationale should precede the code,
+  not document it after the fact.
 - **Before changing settled design** → search 🧭 Decisions for the relevant decision; it records the
   alternatives already rejected, so you don't relitigate them.
 - **End each session** → update the issue: set `Status` and post a Snapshot comment. Always post it
