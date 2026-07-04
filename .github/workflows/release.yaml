@@ -157,7 +157,7 @@ jobs:
           import re
           import subprocess
           import sys
-          
+
           PROMOTION_TITLE = re.compile(r"^(Promote .* → .* \(\d+ commits?\)|Merge .* into (main|test|development))")
           LEAF_EXCLUDE = [
               re.compile(r"^docs:"),
@@ -167,8 +167,8 @@ jobs:
               re.compile(r"Merge pull request"),
               re.compile(r"Merge branch"),
           ]
-          
-          
+
+
           def gh_api_json(path, method="GET", fields=None):
               cmd = ["gh", "api", path]
               if method != "GET":
@@ -179,14 +179,14 @@ jobs:
               if out.returncode != 0:
                   return None, out.stderr
               return json.loads(out.stdout), None
-          
-          
+
+
           class Resolver:
               def __init__(self, repo, repo_dir):
                   self.repo = repo
                   self.repo_dir = repo_dir
                   self.cache = {}
-          
+
               def pr_for_commit(self, sha):
                   key = f"commit_pr:{sha}"
                   if key in self.cache:
@@ -205,7 +205,7 @@ jobs:
                           }
                   self.cache[key] = result
                   return result
-          
+
               def pr_commits(self, number):
                   key = f"pr_commits:{number}"
                   if key in self.cache:
@@ -214,7 +214,7 @@ jobs:
                   result = [c["sha"] for c in (commits or [])]
                   self.cache[key] = result
                   return result
-          
+
               def commit_info(self, sha):
                   key = f"commit_info:{sha}"
                   if key in self.cache:
@@ -232,7 +232,7 @@ jobs:
                   }
                   self.cache[key] = result
                   return result
-          
+
               def resolve_leaves(self, sha, seen, depth=0):
                   if sha in seen or depth > 12:
                       return []
@@ -244,12 +244,12 @@ jobs:
                           leaves.extend(self.resolve_leaves(inner_sha, seen, depth + 1))
                       return leaves
                   return [pr if pr else self.commit_info(sha)]
-          
-          
+
+
           def excluded(title):
               return any(p.search(title) for p in LEAF_EXCLUDE)
-          
-          
+
+
           def format_bullet(leaf):
               title, author, url = leaf["title"], leaf.get("author"), leaf.get("url")
               if author and url:
@@ -257,8 +257,8 @@ jobs:
               if url:
                   return f"- {title} in {url}"
               return f"- {title}"
-          
-          
+
+
           def build_bullets(repo, repo_dir, prev, tag):
               resolver = Resolver(repo, repo_dir)
               rng = f"{prev}..{tag}" if prev else tag
@@ -267,12 +267,12 @@ jobs:
                   capture_output=True, text=True, check=True,
               ).stdout
               shas = [s for s in log.split("\n") if s.strip()]
-          
+
               seen = set()
               all_leaves = []
               for sha in shas:
                   all_leaves.extend(resolver.resolve_leaves(sha, seen))
-          
+
               bullets, seen_titles = [], set()
               for leaf in reversed(all_leaves):  # newest first
                   if excluded(leaf["title"]) or leaf["title"] in seen_titles:
@@ -280,8 +280,8 @@ jobs:
                   seen_titles.add(leaf["title"])
                   bullets.append(format_bullet(leaf))
               return bullets
-          
-          
+
+
           def main():
               ap = argparse.ArgumentParser()
               ap.add_argument("--repo", required=True, help="owner/name")
@@ -289,7 +289,7 @@ jobs:
               ap.add_argument("--prev-tag", default=None)
               ap.add_argument("--repo-dir", default=".")
               args = ap.parse_args()
-          
+
               bullets = build_bullets(args.repo, args.repo_dir, args.prev_tag, args.tag)
               parts = ["## What's Changed", ""]
               parts.extend(bullets)
@@ -299,8 +299,8 @@ jobs:
               if args.prev_tag:
                   parts.append(f"**Full Changelog**: https://github.com/{args.repo}/compare/{args.prev_tag}...{args.tag}")
               print("\n".join(parts))
-          
-          
+
+
           if __name__ == "__main__":
               main()
           PYEOF
