@@ -41,6 +41,17 @@ only the map to them.
   without claiming it. If the work embodies a design choice rather than an obvious continuation,
   post it with `dx decision add` **before** implementing — the rationale should precede the code,
   not document it after the fact.
+- **When to create a new Initiative vs. reuse one vs. just file a flat issue.** Default to *not*
+  creating one — a single well-scoped issue never needs its own Initiative, and a small addition to
+  existing work belongs under whichever Initiative it naturally extends. Spin up a new Initiative
+  once a body of work has actually earned independent tracking: roughly three or more
+  concretely-scoped issues (not placeholders) sharing a dependency chain or narrative distinct from
+  any existing Initiative, expected to span multiple sessions. A single placeholder issue capturing
+  a deferred idea does not need its own Initiative yet — leave it inside the most related existing
+  one and only split it out once the idea grows enough real, scoped issues to justify it. (This is
+  how a body of billing/email planning grew Automations and Dashboards into their own Initiatives
+  mid-session once they had real scope, while an automations-billing-metering thread stayed a single
+  placeholder inside Billing & Usage until it did.)
 - **Before changing settled design** → search 🧭 Decisions for the relevant decision; it records the
   alternatives already rejected, so you don't relitigate them.
 - **End each session** → update the issue: set `Status` and post a Snapshot comment. Always post it
