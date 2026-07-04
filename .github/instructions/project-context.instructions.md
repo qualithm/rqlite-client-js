@@ -52,3 +52,23 @@ only the map to them.
   the command owns the canonical form, and `dx decision lint` flags any that drift from it.
 - **Link, don't duplicate.** The agent-only memory log is a scratch mirror, not the system of record
   — promote durable facts to the board (state) or Discussions (why).
+
+## Branching model
+
+- **Core branches** — `development` (integration, direct pushes) → `test` (staging) → `main`
+  (release). Promotion is one-way and **adjacent-hop only**: a PR into `test` must come from
+  `development`; a PR into `main` must come from `test`. Never open a PR that skips a hop
+  (`development` straight into `main`) or runs the chain backwards — repos with all three branches
+  enforce this with a required `Source Branch` status check, not just convention. Repos with only a
+  `main` branch (`ui`, `dx`, the `*-example` templates) push directly to `main`; there's no chain to
+  reason about.
+- **Feature branches** — cut from `development` (or `main` for single-branch repos), named for the
+  work in `kebab-case`. PR them back into `development` — not `test` or `main` directly — so the
+  change rides the normal promotion chain instead of bypassing it. Once its PR merges, delete the
+  branch (local **and** remote); a merged branch has no reason to linger, and `git branch --merged`
+  understates what's safe to delete here since PRs squash-merge — check the PR's merge state
+  (`gh pr list --state all --head <branch>`), not just tree/ancestry, before deleting.
+- **Worktrees** — prefer `git worktree add ../<repo>-<branch> <branch>` over switching branches in
+  the primary clone when more than one thing is in flight (e.g. a feature alongside an urgent fix).
+  This keeps the primary checkout on `development` so other tooling (dev servers, background syncs)
+  isn't disrupted by a branch switch, and lets parallel efforts progress without stashing.
