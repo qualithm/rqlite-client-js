@@ -65,9 +65,12 @@ only the map to them.
 - **Feature branches** — cut from `development` (or `main` for single-branch repos), named for the
   work in `kebab-case`. PR them back into `development` — not `test` or `main` directly — so the
   change rides the normal promotion chain instead of bypassing it. Once its PR merges, delete the
-  branch (local **and** remote); a merged branch has no reason to linger, and `git branch --merged`
-  understates what's safe to delete here since PRs squash-merge — check the PR's merge state
-  (`gh pr list --state all --head <branch>`), not just tree/ancestry, before deleting.
+  branch (local **and** remote) immediately; a merged branch has no reason to linger, and
+  `git branch --merged` understates what's safe to delete here since PRs squash-merge — check the
+  PR's merge state (`gh pr list --state all --head <branch>`), not just tree/ancestry, before
+  deleting. **Unmerged** branches have no fixed TTL while active, but treat one as stale if its PR
+  has had no commits or review activity for ~2 weeks — at that point either resume the work or close
+  the PR and delete the branch rather than letting it rot.
 - **Worktrees** — prefer `git worktree add ../<repo>-<branch> <branch>` over switching branches in
   the primary clone when more than one thing is in flight (e.g. a feature alongside an urgent fix).
   This keeps the primary checkout on `development` so other tooling (dev servers, background syncs)
