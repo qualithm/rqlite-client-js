@@ -20,6 +20,10 @@ type(scope)!: subject
 - **!**: _(optional)_ indicates a breaking change
 - **subject**: imperative, lowercase, no trailing period
 
+**Scope discipline:** scope names the affected module, package, or area — never the action being
+taken. Don't use the commit's own type/verb as its scope (e.g. `commit`, `chore`, `fix`, `update`,
+`misc`). If nothing more specific applies, omit the scope entirely rather than inventing one.
+
 **Example**
 
 ```
@@ -49,6 +53,7 @@ Improves UX for returning users.
 - Use for metadata, breaking changes, or issue references.
   - `BREAKING CHANGE:` short description of the change
   - `Closes/Fixes/Refs:` issue references (e.g. `Closes #123`)
+- Do **not** add `Co-authored-by` trailers or any other Copilot/agent authorship attribution.
 
 **Board issues:** when a commit advances an engineering-board issue, add a `Refs: #N` trailer (one
 issue per line for several). The `git-merge` promotion script harvests these from the promoted
