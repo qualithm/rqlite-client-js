@@ -50,8 +50,19 @@ only the map to them.
   Omitted sections render `- none`. When a decision crystallizes, post it with
   `dx decision add --title … --body-file …` (or `--status/--context/--decision/--consequences …`) —
   the command owns the canonical form, and `dx decision lint` flags any that drift from it.
-- **Link, don't duplicate.** The agent-only memory log is a scratch mirror, not the system of record
-  — promote durable facts to the board (state) or Discussions (why).
+- **End each planning/discovery session (no code changed) the same way.** A conversation that only
+  produces ideas is not done until every idea worth keeping has a durable home. Before closing out:
+  audit each design thread discussed, including tangential or explicitly-deferred ones, and confirm
+  it landed as either a Decision (the "why", even for work with no issue yet) or a Backlog issue
+  (the "what", even if unstartable today) — not as a mention buried in another issue's `Links`
+  section and not as prose in a chat reply. "We'll scope this properly next time" is fine as a
+  decision; leaving the idea undocumented until "next time" is not — post a placeholder Decision or
+  issue capturing the shape of it now, thin as it may be.
+- **Link, don't duplicate — and memory is not a substitute for either.** The agent-only memory log
+  (session or repo-scoped) is a scratch mirror for continuity within a tool's own context, not the
+  system of record: it is invisible to a different session, a different agent, or a human teammate.
+  If a fact would matter to whoever picks this up next, it belongs on the board or in Discussions,
+  full stop — memory may additionally note it for convenience, but never _only_ note it there.
 
 ## Branching model
 
