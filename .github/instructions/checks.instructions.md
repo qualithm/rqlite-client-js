@@ -5,8 +5,8 @@ description: "Exact pre-commit commands for the bun-lib CI archetype, kept in sy
 
 # Pre-commit Checks
 
-This repo's `ci.yaml` is generated from `dx/ci-templates/bun-lib.yaml`. Run these before committing
-so CI passes on the first try:
+This repo's `ci.yaml` is generated from `dx/ci-templates/bun-lib.yaml` via `dx ci sync` (check for
+drift with `dx ci drift`). Run these before committing so CI passes on the first try:
 
 ```bash
 bun run lint

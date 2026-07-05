@@ -58,7 +58,15 @@ repo-scoped, and may carry its own elaboration.
 
 `Cargo.toml` per-crate `description` fields describe the **individual crate**, not the project, and
 are written independently (see `varv-rs/crates/*`). `wrangler.jsonc` has no description field — only
-`name`. GitHub repo "About" text is set manually and should match Part 1.
+`name`. GitHub repo "About" text should match Part 1 and is kept in sync via `dx describe`, not
+edited by hand:
+
+- `dx describe check [--repos r1,r2]` — cross-check that the one-liner is identical across the
+  surfaces a repo actually has; exits non-zero on mismatch. Needs no `gh`, safe for per-repo CI.
+- `dx describe drift [--repos r1,r2]` — diff each repo's local one-liner against its live GitHub
+  About text; exits non-zero on drift.
+- `dx describe sync [--dry-run] [--repos r1,r2]` — push the local one-liner to GitHub About via
+  `gh repo edit`.
 
 ## Example templates
 
