@@ -83,11 +83,14 @@ only the map to them.
 
 - **Core branches** — `development` (integration, direct pushes) → `test` (staging) → `main`
   (release). Promotion is one-way and **adjacent-hop only**: a PR into `test` must come from
-  `development`; a PR into `main` must come from `test`. Never open a PR that skips a hop
-  (`development` straight into `main`) or runs the chain backwards — repos with all three branches
-  enforce this with a required `Source Branch` status check, not just convention. Repos with only a
-  `main` branch (`ui`, `dx`, the `*-example` templates) push directly to `main`; there's no chain to
-  reason about.
+  `development`; a PR into `main` must come from `test`. Run `dx git merge` (`--repos r1,r2` to
+  scope it, `--wait` to poll until each hop's PR is merged before opening the next) to open or
+  refresh these promotion PRs — it self-documents by harvesting `Closes`/`Refs #N` from the promoted
+  commits' associated PRs (see `pr.instructions.md`); re-run it after each PR merges if not using
+  `--wait`. Never open a PR that skips a hop (`development` straight into `main`) or runs the chain
+  backwards — repos with all three branches enforce this with a required `Source Branch` status
+  check, not just convention. Repos with only a `main` branch (`ui`, `dx`, the `*-example`
+  templates) push directly to `main`; there's no chain to reason about.
 - **Feature branches** — cut from `development` (or `main` for single-branch repos), named for the
   work in `kebab-case`. PR them back into `development` — not `test` or `main` directly — so the
   change rides the normal promotion chain instead of bypassing it. Open (or refresh) the PR with
