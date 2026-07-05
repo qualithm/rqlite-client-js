@@ -15,9 +15,12 @@ only the map to them.
 - **Engineering board** (org GitHub Projects **#3**) — _the plan and live state_. Every work item is
   a flat, pickable issue grouped by `Initiative` + `Status`; the **running snapshot lives in the
   issue's comments**. Inspect with `dx project board 3` (filter `--initiative <name>`). The pickup
-  queue is `Status: Ready, no assignee`; claim by self-assigning + setting `In progress` (one at a
-  time). Issue bodies follow the work-item form (`### Why` / `### Scope / contract` /
-  `### Acceptance` / `### Links`); `dx project lint` flags any that drift from it.
+  queue is `Status: Ready, no assignee`; claim it with
+  `dx project claim <issue> --repo <owner/name>` (self-assigns + sets `In progress` atomically, one
+  at a time; refuses if already assigned unless `--force`). Issue bodies follow the work-item form
+  (`### Why` / `### Scope / contract` / `### Acceptance` / `### Links`); `dx project lint` flags any
+  that drift from it, and `dx project audit` flags any item whose `Status` disagrees with the real
+  issue/PR state (e.g. marked Done but still open).
 - **🧭 Decisions** (org GitHub Discussions, Decisions category) — _why_: durable architecture
   decisions, one per post — what was chosen, why, alternatives rejected. List recent ones with
   `dx decision list`.
@@ -36,11 +39,12 @@ only the map to them.
   pickable issue. If none exists, open one following the work-item form (`### Why` /
   `### Scope / contract` / `### Acceptance` / `### Links`) and add it with
   `dx project add 3 --url <issue-url>`. Group cross-repo or multi-step efforts under an `Initiative`
-  — `dx project initiative add "<name>"` if it doesn't exist yet. Self-assign and set
-  `Status: In progress` before writing code; never start against `Status: Ready, no assignee`
-  without claiming it. If the work embodies a design choice rather than an obvious continuation,
-  post it with `dx decision add` **before** implementing — the rationale should precede the code,
-  not document it after the fact.
+  — `dx project initiative add "<name>"` if it doesn't exist yet. Claim it with
+  `dx project claim <issue> --repo <owner/name>` before writing code — this self-assigns and sets
+  `Status: In progress` in one step; never start against `Status: Ready, no assignee` without
+  claiming it. If the work embodies a design choice rather than an obvious continuation, post it
+  with `dx decision add` **before** implementing — the rationale should precede the code, not
+  document it after the fact.
 - **When to create a new Initiative vs. reuse one vs. just file a flat issue.** Default to _not_
   creating one — a single well-scoped issue never needs its own Initiative, and a small addition to
   existing work belongs under whichever Initiative it naturally extends. Spin up a new Initiative
@@ -54,8 +58,8 @@ only the map to them.
   placeholder inside Billing & Usage until it did.)
 - **Before changing settled design** → search 🧭 Decisions for the relevant decision; it records the
   alternatives already rejected, so you don't relitigate them.
-- **End each session** → update the issue: set `Status` and post a Snapshot comment. Always post it
-  with
+- **End each session** → update the issue: set `Status` (`dx project status <issue-url> <value>`)
+  and post a Snapshot comment. Always post it with
   `dx project snapshot <issue> --repo <owner/name> --done … --in-progress … --next … --blockers …`
   (each flag repeatable) — the command owns the exact format, so don't hand-write the comment.
   Omitted sections render `- none`. When a decision crystallizes, post it with
@@ -86,13 +90,14 @@ only the map to them.
   reason about.
 - **Feature branches** — cut from `development` (or `main` for single-branch repos), named for the
   work in `kebab-case`. PR them back into `development` — not `test` or `main` directly — so the
-  change rides the normal promotion chain instead of bypassing it. Once its PR merges, delete the
-  branch (local **and** remote) immediately; a merged branch has no reason to linger, and
-  `git branch --merged` understates what's safe to delete here since PRs squash-merge — check the
-  PR's merge state (`gh pr list --state all --head <branch>`), not just tree/ancestry, before
-  deleting. **Unmerged** branches have no fixed TTL while active, but treat one as stale if its PR
-  has had no commits or review activity for ~2 weeks — at that point either resume the work or close
-  the PR and delete the branch rather than letting it rot.
+  change rides the normal promotion chain instead of bypassing it. Open (or refresh) the PR with
+  `dx git feature` (see `pr.instructions.md`) rather than hand-writing the title/body. Once its PR
+  merges, delete the branch (local **and** remote) immediately; a merged branch has no reason to
+  linger, and `git branch --merged` understates what's safe to delete here since PRs squash-merge —
+  check the PR's merge state (`gh pr list --state all --head <branch>`), not just tree/ancestry,
+  before deleting. **Unmerged** branches have no fixed TTL while active, but treat one as stale if
+  its PR has had no commits or review activity for ~2 weeks — at that point either resume the work
+  or close the PR and delete the branch rather than letting it rot.
 - **Worktrees** — prefer `git worktree add ../<repo>-<branch> <branch>` over switching branches in
   the primary clone when more than one thing is in flight (e.g. a feature alongside an urgent fix).
   This keeps the primary checkout on `development` so other tooling (dev servers, background syncs)
