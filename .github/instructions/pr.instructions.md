@@ -8,6 +8,13 @@ The title and body follow the exact same rules `dx git merge` uses to synthesize
 promotion PRs (see `synthesize_pr` in [scripts/git-merge](../../scripts/git-merge)) — so a PR looks
 the same whether a human opens it or the promotion script does.
 
+**Opening a feature-branch PR (not a promotion hop)?** Use `dx git feature` (scripts/git-feature)
+instead of hand-writing the title/body — it pushes the current branch and creates or refreshes its
+PR into `--base` (default `development`) applying these exact rules, including the harvested
+`Closes`/`Refs` footer. It refuses to guess a title once a branch carries more than one commit (pass
+`--title`) since summarizing intent across commits needs judgement a script doesn't have; run with
+`--dry-run` to preview the title/body before pushing anything.
+
 ## Title
 
 - If the PR carries exactly **one commit**, reuse that commit's header verbatim as the PR title (it
