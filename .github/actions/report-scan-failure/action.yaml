@@ -1,0 +1,32 @@
+# Vendored by dx/scripts/audit-sync from dx's .github/actions/report-scan-failure/action.yaml. Do not edit directly — change the source in dx and re-run audit-sync.
+
+name: "Report or resolve scan failure"
+description: >
+  Files (or bumps) a board-ready issue when a scheduled scan step genuinely fails, or closes it once
+  the scan is green again and nobody has claimed it yet. Dedupes on the issue title, so re-runs of a
+  still-failing scan never pile up duplicate issues.
+inputs:
+  mode:
+    description: "report (scan just failed) or resolve (scan just passed)"
+    required: true
+  title:
+    description: "Stable anchor used as both the issue title and the dedup key."
+    required: true
+  github-token:
+    description: "Token with this repo's issues:write (e.g. secrets.GITHUB_TOKEN)."
+    required: true
+  run-url:
+    description: "URL of the workflow run to link from the issue (mode: report)."
+    required: false
+    default: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        MODE: ${{ inputs.mode }}
+        TITLE: ${{ inputs.title }}
+        RUN_URL: ${{ inputs.run-url }}
+      run: ${{ github.action_path }}/run.sh

@@ -27,14 +27,14 @@ jobs:
         run: bun audit
       - name: Report failure
         if: steps.scan.outcome == 'failure'
-        uses: qualithm/dx/.github/actions/report-scan-failure@main
+        uses: ./.github/actions/report-scan-failure
         with:
           mode: report
           title: "${{ github.event.repository.name }}: bun audit found a vulnerability"
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Resolve stale failure issue
         if: steps.scan.outcome == 'success'
-        uses: qualithm/dx/.github/actions/report-scan-failure@main
+        uses: ./.github/actions/report-scan-failure
         with:
           mode: resolve
           title: "${{ github.event.repository.name }}: bun audit found a vulnerability"
