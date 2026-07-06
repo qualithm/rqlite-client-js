@@ -15,12 +15,13 @@ report)
     echo "report-scan-failure: bumped existing issue #${existing}"
   else
     body="### Why
-The scheduled scan is failing, which means it found something real rather than a one-off flake —
-someone needs to look at the failing run and fix the underlying problem.
+The scheduled scan is failing, which means it found something real rather than a one-off flake
+— someone needs to look at the failing run and fix the underlying problem.
 
 ### Scope / contract
-Investigate ${RUN_URL}, determine the root cause, and resolve it (dependency bump, code fix, or a
-documented, justified suppression). Do not silence the check without addressing the finding.
+Investigate the failing run linked below, determine the root cause, and resolve it (dependency
+bump, code fix, or a documented, justified suppression). Do not silence the check without
+addressing the finding.
 
 ### Acceptance
 - [ ] Root cause identified
