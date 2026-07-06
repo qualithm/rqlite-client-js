@@ -5,128 +5,79 @@ applyTo: "**"
 
 # Project Context
 
-Before reasoning about _what is going on_ with this project — its progress, in-flight work, and the
-decisions future work builds on — consult these sources. They are the system of record; this file is
-only the map to them.
+The board and Discussions are the system of record for project state; this file maps you to them.
+Consult them before reasoning about progress, in-flight work, or the decisions new work builds on.
+Commands below are described by policy only — run `dx <cmd> --help` for flags.
 
 ## Where context lives
 
-- **`README.md`** (this repo) — _what_ it is and _how_ to use it. No plan or status.
-- **Engineering board** (org GitHub Projects **#3**) — _the plan and live state_. Every work item is
-  a flat, pickable issue grouped by `Initiative` + `Status`; the **running snapshot lives in the
-  issue's comments**. Inspect with `dx project board 3` (filter `--initiative <name>`). The pickup
-  queue is `Status: Ready, no assignee` — list it directly with
-  `dx project items 3 --status Ready --no-assignee` (both filters compose with `--initiative`);
-  claim it with `dx project claim <issue> --repo <owner/name>` (self-assigns + sets `In progress`
-  atomically, one at a time; refuses if already assigned unless `--force`). Issue bodies follow the
-  work-item form (`### Why` / `### Scope / contract` / `### Acceptance` / `### Links`);
-  `dx project lint` flags any that drift from it (or that are missing an `Initiative`/`Size`), and
-  `dx project audit` flags inconsistencies — a stale `Status` vs. the real issue/PR state (e.g.
-  marked Done but still open), an `In progress` item with no assignee or no Snapshot in 14 days, or
-  a `Ready`/`Backlog` item that's already assigned. `dx project stats 3` gives a roll-up (`Status` ×
-  `Initiative`, WIP, oldest `In progress`).
-- **Sizing** — the board `Size` (XS/S/M/L/XL) estimates one agent's **session effort**: `XS` a
-  one-file/one-command tweak; `S` a single file plus its tests in one focused session; `M` a few
-  files, one session end-to-end; `L` multi-file or spanning more than one session; `XL` too big to
-  pick up as-is — split it before starting. Set it when filing; `dx project lint` requires it on
-  every non-Done item, and an `XL` is a signal to split, not a valid pickable size.
-- **🧭 Decisions** (org GitHub Discussions, Decisions category) — _why_: durable architecture
-  decisions, one per post — what was chosen, why, alternatives rejected. List recent ones with
-  `dx decision list`.
-- **Initiatives** — a board `Initiative` value groups a cross-cutting effort; its narrative lives in
-  the initiative's tracking issue (filter `dx project board 3 --initiative <name>`). Add a new
-  initiative with `dx project initiative add "<name>"` — never edit the single-select field by hand
-  or via a raw `updateProjectV2Field` mutation, which recreates the options with new ids and
-  silently clears the `Initiative` value on every existing item.
+- **`README.md`** — what the repo is and how to use it; no plan or status.
+- **Engineering board** — org GitHub Projects **#3**, the plan and live state. Work items are flat,
+  pickable issues grouped by `Initiative` + `Status`, with the running snapshot in each issue's
+  comments. Browse with `dx project board`; the pickup queue is `Status: Ready` with no assignee
+  (`dx project items`). Issue bodies follow the work-item form (`### Why` / `### Scope / contract` /
+  `### Acceptance` / `### Links`). `dx project lint` flags bodies that drift or lack an
+  `Initiative`/`Size`; `dx project audit` flags state drift (`Status` vs. real issue/PR state, an
+  `In progress` item unassigned or silent >14 days, a `Ready`/`Backlog` item already assigned);
+  `dx project stats` rolls it up.
+- **Size** — one agent's session effort: `XS` a one-file/one-command tweak; `S` a single file plus
+  tests, one session; `M` a few files, one session; `L` multi-file or multi-session; `XL` too big —
+  split it before pickup rather than claiming it. Set it when filing; `lint` requires it on every
+  non-Done item.
+- **🧭 Decisions** — org GitHub Discussions (Decisions category), the durable "why": one decision
+  per post — what was chosen, why, which alternatives were rejected. List with `dx decision list`.
+- **Initiatives** — the board `Initiative` field groups a cross-cutting effort; its narrative lives
+  in the initiative's tracking issue. Add options only with `dx project initiative add` — editing
+  the single-select by hand or via a raw `updateProjectV2Field` mutation recreates the options with
+  new ids and silently clears every item's `Initiative`.
 
-## How to use it
+## Working the board
 
-- **"What's the status / what's next?"** → the board (issue + its latest comment); for a cross-repo
-  effort, filter by its `Initiative`. `dx project stats 3` gives the roll-up, and
-  `dx project mine 3` lists your own `In progress`/`In review` items.
-- **Before starting non-trivial work** → find or create the board issue first; don't let code get
-  ahead of the plan. Check the pickup queue (`dx project items 3 --status Ready --no-assignee`, or
-  `dx project board 3 --initiative <name>`) for an existing pickable issue. If none exists, open one
-  following the work-item form (`### Why` / `### Scope / contract` / `### Acceptance` / `### Links`)
-  and add it with `dx project add 3 --url <issue-url>`. Group cross-repo or multi-step efforts under
-  an `Initiative` — `dx project initiative add "<name>"` if it doesn't exist yet. Claim it with
-  `dx project claim <issue> --repo <owner/name>` before writing code — this self-assigns and sets
-  `Status: In progress` in one step; never start against `Status: Ready, no assignee` without
-  claiming it. If the work embodies a design choice rather than an obvious continuation, post it
-  with `dx decision add` **before** implementing — the rationale should precede the code, not
-  document it after the fact.
-- **When to create a new Initiative vs. reuse one vs. just file a flat issue.** Default to _not_
-  creating one — a single well-scoped issue never needs its own Initiative, and a small addition to
-  existing work belongs under whichever Initiative it naturally extends. Spin up a new Initiative
-  once a body of work has actually earned independent tracking: roughly three or more
-  concretely-scoped issues (not placeholders) sharing a dependency chain or narrative distinct from
-  any existing Initiative, expected to span multiple sessions. A single placeholder issue capturing
-  a deferred idea does not need its own Initiative yet — leave it inside the most related existing
-  one and only split it out once the idea grows enough real, scoped issues to justify it. (This is
-  how a body of billing/email planning grew Automations and Dashboards into their own Initiatives
-  mid-session once they had real scope, while an automations-billing-metering thread stayed a single
-  placeholder inside Billing & Usage until it did.)
-- **Before changing settled design** → search 🧭 Decisions for the relevant decision; it records the
-  alternatives already rejected, so you don't relitigate them. If you're reversing or narrowing one,
-  record that on the original discussion with `dx decision amend --number N --summary "..."` (posts
-  a `**Amendment (YYYY-MM-DD):**` comment) rather than relitigating it as a new discussion — the
-  original Context/Decision/Consequences stay intact as the historical record, and the amendment
-  says what changed and why.
-- **End each session** → update the issue: set `Status` (`dx project status <issue-url> <value>`)
-  and post a Snapshot comment. Always post it with
-  `dx project snapshot <issue> --repo <owner/name> --done … --in-progress … --next … --blockers …`
-  (each flag repeatable) — the command owns the exact format, so don't hand-write the comment.
-  Omitted sections render `- none`. When a decision crystallizes, post it with
-  `dx decision add --title … --body-file …` (or `--status/--context/--decision/--consequences …`) —
-  the command owns the canonical form, and `dx decision lint` flags any that drift from it. For a
-  whole-initiative heartbeat (rather than a single issue), post a project-level update with
-  `dx project update 3 --state <ON_TRACK|AT_RISK|OFF_TRACK|COMPLETE> [--target <date>] [--body …]`.
-- **End each planning/discovery session (no code changed) the same way.** A conversation that only
-  produces ideas is not done until every idea worth keeping has a durable home. Before closing out:
-  audit each design thread discussed, including tangential or explicitly-deferred ones, and confirm
-  it landed as either a Decision (the "why", even for work with no issue yet) or a Backlog issue
-  (the "what", even if unstartable today) — not as a mention buried in another issue's `Links`
-  section and not as prose in a chat reply. "We'll scope this properly next time" is fine as a
-  decision; leaving the idea undocumented until "next time" is not — post a placeholder Decision or
-  issue capturing the shape of it now, thin as it may be.
-- **Link, don't duplicate — and memory is not a substitute for either.** The agent-only memory log
-  (session or repo-scoped) is a scratch mirror for continuity within a tool's own context, not the
-  system of record: it is invisible to a different session, a different agent, or a human teammate.
-  If a fact would matter to whoever picks this up next, it belongs on the board or in Discussions,
-  full stop — memory may additionally note it for convenience, but never _only_ note it there.
+- **Status / what's next** — read the board (issue + its latest comment); filter by `Initiative` for
+  a cross-repo effort, and `dx project mine` for your own in-flight items.
+- **Before non-trivial work** — find or create the board issue first; don't let code get ahead of
+  the plan. Check the pickup queue; if nothing fits, open an issue in the work-item form, add it
+  with `dx project add`, and group cross-repo or multi-session efforts under an `Initiative`. Claim
+  it with `dx project claim` before writing code — never start an unclaimed `Ready` item. If the
+  work embodies a design choice, post a Decision (`dx decision add`) **before** implementing, not
+  after.
+- **New Initiative vs. reuse vs. flat issue** — default to not creating one: a single well-scoped
+  issue needs none, and a small addition rides the Initiative it extends. Create one only when ~3+
+  concretely-scoped issues (not placeholders) share a dependency chain or narrative distinct from
+  every existing Initiative and span multiple sessions. Keep a lone deferred idea inside the nearest
+  Initiative until it grows that much real scope.
+- **Before changing settled design** — search 🧭 Decisions first; a decision records the
+  alternatives already rejected, so you don't relitigate them. To reverse or narrow one,
+  `dx decision amend` on the original discussion rather than opening a competing one — the original
+  stays as the record, the amendment says what changed.
+- **End every session** (code or planning-only) — set `Status` (`dx project status`) and post a
+  Snapshot (`dx project snapshot`, which owns the format — don't hand-write it). Give every idea
+  worth keeping a durable home before you close out: a Decision (the "why") or a Backlog issue (the
+  "what"), never just a mention in another issue's `Links` or a chat reply — a thin placeholder now
+  beats "next time". Post a whole-initiative heartbeat with `dx project update --state`.
+- **Memory is not the record** — the agent memory log is a private scratch mirror, invisible to
+  other sessions, agents, and humans. Anything the next picker-up needs belongs on the board or in
+  Discussions; memory may echo it, never own it.
 
 ## Branching model
 
 - **Core branches** — `development` (integration, direct pushes) → `test` (staging) → `main`
-  (release). Promotion is one-way and **adjacent-hop only**: a PR into `test` must come from
-  `development`; a PR into `main` must come from `test`. Run `dx git merge` (`--repos r1,r2` to
-  scope it, `--wait` to poll until each hop's PR is merged before opening the next) to open or
-  refresh these promotion PRs — it self-documents by harvesting `Closes`/`Refs #N` from the promoted
-  commits' associated PRs (see `pr.instructions.md`); re-run it after each PR merges if not using
-  `--wait`. Never open a PR that skips a hop (`development` straight into `main`) or runs the chain
-  backwards — repos with all three branches enforce this with a required `Source Branch` status
-  check, not just convention. Repos with only a `main` branch (`ui`, `dx`, the `*-example`
-  templates) have no promotion chain, but still route **issue-resolving** work through a short-lived
-  feature-branch PR into `main` (see below) rather than pushing the resolving change straight to it.
-- **Feature branches** — cut from `development` (or `main` for single-branch repos), named for the
-  work in `kebab-case`. PR them back into `development` — not `test` or `main` directly — so the
-  change rides the normal promotion chain instead of bypassing it. Open (or refresh) the PR with
-  `dx git feature` (see `pr.instructions.md`) rather than hand-writing the title/body. Once its PR
-  merges, delete the branch (local **and** remote) immediately; a merged branch has no reason to
-  linger, and `git branch --merged` understates what's safe to delete here since PRs squash-merge —
-  check the PR's merge state (`gh pr list --state all --head <branch>`), not just tree/ancestry,
-  before deleting. **Unmerged** branches have no fixed TTL while active, but treat one as stale if
-  its PR has had no commits or review activity for ~2 weeks — at that point either resume the work
-  or close the PR and delete the branch rather than letting it rot.
-- **Issue-resolving PRs** — any branch that resolves a board issue merges through a PR carrying a
-  `Closes #N` trailer into the repo's **default branch** (harvested automatically by
-  `dx git feature`/`dx git merge`), so the merge auto-closes the issue and populates its GitHub
-  **Development** link — the durable issue→code trail. Only a closing keyword creates that link;
-  intermediate promotion hops keep `Refs #N` (a bare reference: no premature close, no link), and
-  the `Closes #N` lands on the hop into the default branch. This is why single-branch repos open a
-  PR for issue work instead of pushing to `main`: a direct push closes nothing and leaves no linked
-  PR.
-- **Worktrees** — prefer `git worktree add ../<repo>-<branch> <branch>` over switching branches in
-  the primary clone when more than one thing is in flight (e.g. a feature alongside an urgent fix).
-  This keeps the primary checkout on `development` so other tooling (dev servers, background syncs)
-  isn't disrupted by a branch switch, and lets parallel efforts progress without stashing.
+  (release). Promotion is one-way and adjacent-hop only: `test` PRs come from `development`, `main`
+  PRs from `test`. Open or refresh promotion PRs with `dx git merge`. Never skip a hop or run the
+  chain backwards — three-branch repos enforce this with a required `Source Branch` check.
+  Single-`main` repos (`ui`, `dx`, the `*-example` templates) have no chain, but still route
+  issue-resolving work through a feature-branch PR into `main`, never a direct push.
+- **Feature branches** — cut from `development` (or `main` for single-branch repos), `kebab-case`,
+  PR'd back into `development` (never `test`/`main` directly) with `dx git feature`. Delete the
+  branch (local and remote) as soon as its PR merges — check the PR's merge state
+  (`gh pr list --state all --head <branch>`), not tree ancestry, since PRs squash-merge. An unmerged
+  branch idle ~2 weeks is stale: resume it, or close the PR and delete it.
+- **Issue-resolving PRs** — a branch that resolves a board issue lands via a `Closes #N` PR into the
+  repo's **default branch**, which auto-closes the issue and populates its GitHub **Development**
+  link (the durable issue→code trail). Only a closing keyword makes that link; intermediate
+  promotion hops carry `Refs #N` (no close, no link), and the `Closes #N` lands on the
+  default-branch hop. `dx git feature`/`dx git merge` harvest these trailers — see
+  `pr.instructions.md` and `commit.instructions.md`.
+- **Worktrees** — when more than one task is in flight, prefer
+  `git worktree add ../<repo>-<branch> <branch>` over switching branches in the primary clone, so
+  the primary checkout stays on `development` and background tooling isn't disrupted.

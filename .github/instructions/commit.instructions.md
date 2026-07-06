@@ -16,7 +16,7 @@ type(scope)!: subject
 
 - **type**: `feat` | `fix` | `docs` | `style` | `refactor` | `perf` | `test` | `build` | `ci` |
   `chore` | `revert`
-- **scope**: _(optional)_ area affected, e.g. `parser`, `ui`
+- **scope**: _(optional)_ area affected, e.g. `parser`, `auth`
 - **!**: _(optional)_ indicates a breaking change
 - **subject**: imperative, lowercase, no trailing period
 
@@ -64,9 +64,9 @@ the commit itself only when merging that commit directly should close the issue.
 **Example**
 
 ```
-fix(ui)!: prevent crash on null avatar
+fix(auth)!: reject tokens signed with the old key
 
-BREAKING CHANGE: Avatar component prop "img" renamed to "src".
+BREAKING CHANGE: tokens issued before the key rotation are no longer accepted.
 Closes #456
 ```
 
