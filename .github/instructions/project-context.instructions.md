@@ -15,12 +15,13 @@ only the map to them.
 - **Engineering board** (org GitHub Projects **#3**) — _the plan and live state_. Every work item is
   a flat, pickable issue grouped by `Initiative` + `Status`; the **running snapshot lives in the
   issue's comments**. Inspect with `dx project board 3` (filter `--initiative <name>`). The pickup
-  queue is `Status: Ready, no assignee`; claim it with
-  `dx project claim <issue> --repo <owner/name>` (self-assigns + sets `In progress` atomically, one
-  at a time; refuses if already assigned unless `--force`). Issue bodies follow the work-item form
-  (`### Why` / `### Scope / contract` / `### Acceptance` / `### Links`); `dx project lint` flags any
-  that drift from it, and `dx project audit` flags any item whose `Status` disagrees with the real
-  issue/PR state (e.g. marked Done but still open).
+  queue is `Status: Ready, no assignee` — list it directly with
+  `dx project items 3 --status Ready --no-assignee` (both filters compose with `--initiative`);
+  claim it with `dx project claim <issue> --repo <owner/name>` (self-assigns + sets `In progress`
+  atomically, one at a time; refuses if already assigned unless `--force`). Issue bodies follow the
+  work-item form (`### Why` / `### Scope / contract` / `### Acceptance` / `### Links`);
+  `dx project lint` flags any that drift from it, and `dx project audit` flags any item whose
+  `Status` disagrees with the real issue/PR state (e.g. marked Done but still open).
 - **🧭 Decisions** (org GitHub Discussions, Decisions category) — _why_: durable architecture
   decisions, one per post — what was chosen, why, alternatives rejected. List recent ones with
   `dx decision list`.
@@ -35,11 +36,11 @@ only the map to them.
 - **"What's the status / what's next?"** → the board (issue + its latest comment); for a cross-repo
   effort, filter by its `Initiative`.
 - **Before starting non-trivial work** → find or create the board issue first; don't let code get
-  ahead of the plan. Check `dx project board 3` (filter `--initiative <name>`) for an existing
-  pickable issue. If none exists, open one following the work-item form (`### Why` /
-  `### Scope / contract` / `### Acceptance` / `### Links`) and add it with
-  `dx project add 3 --url <issue-url>`. Group cross-repo or multi-step efforts under an `Initiative`
-  — `dx project initiative add "<name>"` if it doesn't exist yet. Claim it with
+  ahead of the plan. Check the pickup queue (`dx project items 3 --status Ready --no-assignee`, or
+  `dx project board 3 --initiative <name>`) for an existing pickable issue. If none exists, open one
+  following the work-item form (`### Why` / `### Scope / contract` / `### Acceptance` / `### Links`)
+  and add it with `dx project add 3 --url <issue-url>`. Group cross-repo or multi-step efforts under
+  an `Initiative` — `dx project initiative add "<name>"` if it doesn't exist yet. Claim it with
   `dx project claim <issue> --repo <owner/name>` before writing code — this self-assigns and sets
   `Status: In progress` in one step; never start against `Status: Ready, no assignee` without
   claiming it. If the work embodies a design choice rather than an obvious continuation, post it
@@ -57,7 +58,11 @@ only the map to them.
   mid-session once they had real scope, while an automations-billing-metering thread stayed a single
   placeholder inside Billing & Usage until it did.)
 - **Before changing settled design** → search 🧭 Decisions for the relevant decision; it records the
-  alternatives already rejected, so you don't relitigate them.
+  alternatives already rejected, so you don't relitigate them. If you're reversing or narrowing one,
+  record that on the original discussion with `dx decision amend --number N --summary "..."` (posts
+  a `**Amendment (YYYY-MM-DD):**` comment) rather than relitigating it as a new discussion — the
+  original Context/Decision/Consequences stay intact as the historical record, and the amendment
+  says what changed and why.
 - **End each session** → update the issue: set `Status` (`dx project status <issue-url> <value>`)
   and post a Snapshot comment. Always post it with
   `dx project snapshot <issue> --repo <owner/name> --done … --in-progress … --next … --blockers …`

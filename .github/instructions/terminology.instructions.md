@@ -1,5 +1,6 @@
 ---
-description: "Fixed spelling/capitalization for names that recur across every repo"
+description:
+  "Fixed spelling/capitalization and writing-style conventions that recur across every repo"
 applyTo: "**"
 ---
 
@@ -8,6 +9,12 @@ applyTo: "**"
 Fixed spelling/capitalization for names that recur everywhere — comments, docs, commit messages,
 error messages, UI copy. This is about **prose**, not identifiers; read the carve-out below before
 "fixing" something that isn't a mistake.
+
+## Terseness
+
+Lean terse everywhere — docs, comments, commit/PR text, instructions. Cut anything that doesn't
+change what the reader does with it; prefer wording unlikely to go stale over specific numbers,
+examples, or snapshots of current state.
 
 ## Qualithm
 
@@ -42,3 +49,9 @@ output-file `creator` metadata — a field a person reads in File → Properties
 `"Qualithm Cost Analysis"`, not `"Qualithm cost-analysis"`. Same test, applied to the field itself:
 does software match this value verbatim, or does a person read it as a name? If a person reads it,
 title-case it.
+
+## File extensions
+
+Use the complete extension, not its shorthand, when a filename isn't otherwise constrained: `.yaml`
+(not `.yml`) — including for GitHub composite actions (`action.yaml`), even though GitHub's own
+scaffolding defaults to `action.yml`.
