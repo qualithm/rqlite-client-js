@@ -57,7 +57,11 @@ only the map to them.
   mid-session once they had real scope, while an automations-billing-metering thread stayed a single
   placeholder inside Billing & Usage until it did.)
 - **Before changing settled design** → search 🧭 Decisions for the relevant decision; it records the
-  alternatives already rejected, so you don't relitigate them.
+  alternatives already rejected, so you don't relitigate them. If you're reversing or narrowing one,
+  record that on the original discussion with `dx decision amend --number N --summary "..."` (posts
+  a `**Amendment (YYYY-MM-DD):**` comment) rather than relitigating it as a new discussion — the
+  original Context/Decision/Consequences stay intact as the historical record, and the amendment
+  says what changed and why.
 - **End each session** → update the issue: set `Status` (`dx project status <issue-url> <value>`)
   and post a Snapshot comment. Always post it with
   `dx project snapshot <issue> --repo <owner/name> --done … --in-progress … --next … --blockers …`
