@@ -20,8 +20,11 @@ only the map to them.
   claim it with `dx project claim <issue> --repo <owner/name>` (self-assigns + sets `In progress`
   atomically, one at a time; refuses if already assigned unless `--force`). Issue bodies follow the
   work-item form (`### Why` / `### Scope / contract` / `### Acceptance` / `### Links`);
-  `dx project lint` flags any that drift from it, and `dx project audit` flags any item whose
-  `Status` disagrees with the real issue/PR state (e.g. marked Done but still open).
+  `dx project lint` flags any that drift from it (or that are missing an `Initiative`/`Size`), and
+  `dx project audit` flags inconsistencies — a stale `Status` vs. the real issue/PR state (e.g.
+  marked Done but still open), an `In progress` item with no assignee or no Snapshot in 14 days, or
+  a `Ready`/`Backlog` item that's already assigned. `dx project stats 3` gives a roll-up (`Status` ×
+  `Initiative`, WIP, oldest `In progress`).
 - **🧭 Decisions** (org GitHub Discussions, Decisions category) — _why_: durable architecture
   decisions, one per post — what was chosen, why, alternatives rejected. List recent ones with
   `dx decision list`.
@@ -34,7 +37,8 @@ only the map to them.
 ## How to use it
 
 - **"What's the status / what's next?"** → the board (issue + its latest comment); for a cross-repo
-  effort, filter by its `Initiative`.
+  effort, filter by its `Initiative`. `dx project stats 3` gives the roll-up, and
+  `dx project mine 3` lists your own `In progress`/`In review` items.
 - **Before starting non-trivial work** → find or create the board issue first; don't let code get
   ahead of the plan. Check the pickup queue (`dx project items 3 --status Ready --no-assignee`, or
   `dx project board 3 --initiative <name>`) for an existing pickable issue. If none exists, open one
@@ -69,7 +73,9 @@ only the map to them.
   (each flag repeatable) — the command owns the exact format, so don't hand-write the comment.
   Omitted sections render `- none`. When a decision crystallizes, post it with
   `dx decision add --title … --body-file …` (or `--status/--context/--decision/--consequences …`) —
-  the command owns the canonical form, and `dx decision lint` flags any that drift from it.
+  the command owns the canonical form, and `dx decision lint` flags any that drift from it. For a
+  whole-initiative heartbeat (rather than a single issue), post a project-level update with
+  `dx project update 3 --state <ON_TRACK|AT_RISK|OFF_TRACK|COMPLETE> [--target <date>] [--body …]`.
 - **End each planning/discovery session (no code changed) the same way.** A conversation that only
   produces ideas is not done until every idea worth keeping has a durable home. Before closing out:
   audit each design thread discussed, including tangential or explicitly-deferred ones, and confirm
