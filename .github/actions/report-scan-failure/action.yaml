@@ -2,9 +2,11 @@
 
 name: "Report or resolve scan failure"
 description: >
-  Files (or bumps) a board-ready issue when a scheduled scan step genuinely fails, or closes it once
-  the scan is green again and nobody has claimed it yet. Dedupes on the issue title, so re-runs of a
-  still-failing scan never pile up duplicate issues.
+  Files (or bumps) a `security-audit`-labeled issue when a scheduled scan step genuinely fails, or
+  closes it once the scan is green again and nobody has claimed it yet. Dedupes on the issue title,
+  so re-runs of a still-failing scan never pile up duplicate issues. The label deliberately keeps
+  these off the Engineering board by default (Decision #66) — promote one manually with `dx project
+  add` if it turns into real, multi-session work.
 inputs:
   mode:
     description: "report (scan just failed) or resolve (scan just passed)"

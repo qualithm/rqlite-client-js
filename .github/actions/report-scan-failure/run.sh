@@ -10,6 +10,14 @@ existing="$(gh issue list --repo "$REPO" --state open --search "\"${TITLE}\"" \
 
 case "$MODE" in
 report)
+  # security-audit deliberately keeps these off the Engineering board (issue-templates/
+  # add-to-project.yaml excludes it) — see Decision #66:
+  # https://github.com/orgs/qualithm/discussions/66. The label must exist before `gh issue
+  # create --label` can attach it, so ensure it every run; --force makes this idempotent.
+  gh label create security-audit --repo "$REPO" --color "b60205" --force \
+    --description "Automated scan failure filed by report-scan-failure; kept off the Engineering board (Decision #66)" \
+    >/dev/null
+
   if [[ -n "$existing" ]]; then
     gh issue comment "$existing" --repo "$REPO" --body "Still failing as of ${RUN_URL}."
     echo "report-scan-failure: bumped existing issue #${existing}"
@@ -30,7 +38,7 @@ addressing the finding.
 
 ### Links
 - Failing run: ${RUN_URL}"
-    url="$(gh issue create --repo "$REPO" --title "$TITLE" --body "$body")"
+    url="$(gh issue create --repo "$REPO" --title "$TITLE" --body "$body" --label security-audit)"
     echo "report-scan-failure: filed ${url}"
   fi
   ;;
