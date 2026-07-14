@@ -1,6 +1,6 @@
 services:
   rqlite:
-    image: rqlite/rqlite:${RQLITE_VERSION:-9.4.5}@sha256:cf4d7d35e0ce1532e4578ec580dda63554853c010371e3cbe2676a95f5003fb7
+    image: rqlite/rqlite:${RQLITE_VERSION:-10.2.7}@sha256:507da6e6bcf41011f784bcbe4dce5900f84aa027ad6283a50a45c4238e969d3a
     ports:
       - "4001:4001"
       - "4002:4002"
