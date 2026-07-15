@@ -159,7 +159,11 @@ jobs:
           import subprocess
           import sys
 
-          PROMOTION_TITLE = re.compile(r"^(Promote .* → .* \(\d+ commits?\)|Merge .* into (main|test|development))")
+          # Promotion-hop PRs come in a couple of title shapes: dx git merge synthesises
+          # "Promote <src> → <dst> (N commits)" (Unicode arrow + count), but older/manual
+          # promotions use a bare "Promote <src> -> <dst>" (ASCII arrow, no count). Match
+          # both arrows and treat the count as optional so neither slips through as a leaf.
+          PROMOTION_TITLE = re.compile(r"^(Promote .* (?:→|->) .*|Merge .* into (main|test|development))")
           LEAF_EXCLUDE = [
               re.compile(r"^docs(\(.+\))?!?:"),
               re.compile(r"^test(\(.+\))?!?:"),
