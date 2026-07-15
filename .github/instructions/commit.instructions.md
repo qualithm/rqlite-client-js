@@ -57,9 +57,13 @@ Improves UX for returning users.
 
 **Board issues:** when a commit advances an engineering-board issue, add a `Refs: #N` trailer (one
 issue per line for several). The `git-merge` promotion script harvests these from the promoted
-commit range and self-documents the promotion PRs — as `Closes #N` on the hop into the default
-branch (so the issue auto-closes on release) and `Refs #N` on intermediate hops. Use `Closes: #N` in
-the commit itself only when merging that commit directly should close the issue.
+commit range and self-documents the promotion PRs. The harvester **preserves the keyword — it never
+upgrades a `Refs` to a `Closes`.** A reference is emitted as `Closes #N` only when the commit wrote
+a closing keyword (`Closes`/`Fixes`/`Resolves`), and only on the hop into the default branch (so the
+issue auto-closes on release); a deliberate `Refs #N` stays `Refs #N` on every hop, including the
+final one. Intermediate hops always emit `Refs #N`. So: use `Closes:`/`Fixes:`/`Resolves:` only when
+that commit genuinely completes the issue; use `Refs:` for partial progress you don't want
+auto-closed, and it will never be promoted to a close.
 
 **Example**
 
