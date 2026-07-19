@@ -104,6 +104,7 @@ jobs:
     needs: [publish-npm, deploy-docs]
     permissions:
       contents: write
+      pull-requests: read
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout
@@ -158,12 +159,16 @@ jobs:
           import subprocess
           import sys
 
-          PROMOTION_TITLE = re.compile(r"^(Promote .* → .* \(\d+ commits?\)|Merge .* into (main|test|development))")
+          # Promotion-hop PRs come in a couple of title shapes: dx git merge synthesises
+          # "Promote <src> → <dst> (N commits)" (Unicode arrow + count), but older/manual
+          # promotions use a bare "Promote <src> -> <dst>" (ASCII arrow, no count). Match
+          # both arrows and treat the count as optional so neither slips through as a leaf.
+          PROMOTION_TITLE = re.compile(r"^(Promote .* (?:→|->) .*|Merge .* into (main|test|development))")
           LEAF_EXCLUDE = [
-              re.compile(r"^docs:"),
-              re.compile(r"^test:"),
-              re.compile(r"^chore:"),
-              re.compile(r"^ci:"),
+              re.compile(r"^docs(\(.+\))?!?:"),
+              re.compile(r"^test(\(.+\))?!?:"),
+              re.compile(r"^chore(\(.+\))?!?:"),
+              re.compile(r"^ci(\(.+\))?!?:"),
               re.compile(r"Merge pull request"),
               re.compile(r"Merge branch"),
           ]
@@ -177,6 +182,10 @@ jobs:
                   cmd += ["-f", f"{k}={v}"]
               out = subprocess.run(cmd, capture_output=True, text=True)
               if out.returncode != 0:
+                  # Surface the failure so a permission/auth/rate-limit error (which would
+                  # otherwise silently degrade every promotion PR to a bare commit entry)
+                  # is visible in the log rather than producing wrong-but-green notes.
+                  print(f"warning: gh api {path} failed: {out.stderr.strip()}", file=sys.stderr)
                   return None, out.stderr
               return json.loads(out.stdout), None
 
