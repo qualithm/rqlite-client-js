@@ -43,7 +43,12 @@ Refs #456
   - Scan every commit subject/body in the range for `Close[sd]?`, `Fix(e[sd])?`, `Resolve[sd]?`, or
     `Refs?` (case-insensitive, with or without a trailing colon) followed by `#123` or
     `owner/repo#123`. De-duplicate, first-seen order.
-  - Emit as `Closes #N` when the PR's base branch is the repo's default branch (so the issue
-    auto-closes on merge); emit as `Refs #N` for every other base branch (so the reference is
-    visible without prematurely closing anything).
+  - **The trailer keyword is preserved, never upgraded.** A reference becomes `Closes #N` only when
+    it was written with a closing keyword (`Closes`/`Fixes`/`Resolves`) somewhere in the range AND
+    the PR's base is the repo's default branch (so the issue auto-closes on merge). A deliberate
+    `Refs #N` stays `Refs #N` on every base branch — including the default — so partial-progress
+    work referenced with `Refs` is never auto-closed. Use `Refs` (not a closing keyword) whenever a
+    commit only advances an issue without completing it.
+  - Every reference emits as `Refs #N` on a base branch that is not the repo's default branch, so
+    the reference is visible without prematurely closing anything.
 - Omit the references block entirely if no issues were referenced in the range. </content>

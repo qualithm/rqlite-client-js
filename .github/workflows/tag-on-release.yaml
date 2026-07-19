@@ -5,23 +5,22 @@ name: Tag on Release
 
 # Producer half of the tag-driven release flow. The release.yaml in each repo
 # is the CONSUMER (triggered by `push: tags`); this workflow is the PRODUCER:
-# it creates the tag, but only after CI has gone green on main and only on a
-# commit that is actually on main.
+# it creates the tag on a commit that has landed on main.
 #
-# Trigger is `workflow_run` (not `push`) so the tag is cut strictly AFTER the
-# main branch's CI has succeeded. The version source of truth is the repo's
-# manifest (package.json / Cargo.toml / tauri.conf.json / VERSION); a normal
-# merge that does not change the version is a no-op because the tag already
-# exists.
+# Trigger is `push: [main]`: the tag is cut once a commit lands on main. Every
+# such commit already passed CI on its PR (CI runs on `pull_request` into
+# main/test), so gating on a main CI run is unnecessary — and impossible, since
+# CI has no `push: [main]` trigger. The version source of truth is the repo's
+# manifest (package.json / Cargo.toml / tauri.conf.json / VERSION); a push that
+# does not change the version is a no-op because the tag already exists, so this
+# is safe to run on every push to main.
 #
 # The tag MUST be pushed with the qualithm-ci App token, not GITHUB_TOKEN —
 # tags pushed with GITHUB_TOKEN do not trigger downstream workflows, so
 # release.yaml would never fire.
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  push:
     branches: [main]
   workflow_dispatch: {}
 
@@ -36,12 +35,6 @@ jobs:
   tag:
     name: Tag main when version changes
     runs-on: ubuntu-24.04
-    # Only act on a successful CI run for main. workflow_dispatch (manual) is
-    # also allowed so a missed tag can be reconciled by hand.
-    if: >
-      github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success'
-      &&
-       github.event.workflow_run.head_branch == 'main')
     steps:
       - name: Generate GitHub App token
         id: app-token
@@ -53,10 +46,10 @@ jobs:
       - name: Checkout main commit
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          # For workflow_run the triggering commit is the CI head_sha; for a
-          # manual dispatch fall back to the branch tip. fetch-depth 0 + tags so
-          # we can detect an already-released version.
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # github.sha is the pushed main commit (or the branch tip on manual
+          # dispatch). fetch-depth 0 + tags so we can detect an already-released
+          # version.
+          ref: ${{ github.sha }}
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
