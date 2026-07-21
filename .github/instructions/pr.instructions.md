@@ -20,8 +20,11 @@ PR into `--base` (default `development`) applying these exact rules, including t
 - If the PR carries exactly **one commit**, reuse that commit's header verbatim as the PR title (it
   already follows the Conventional Commit format from `commit.instructions.md`).
 - Otherwise: for a branch-promotion PR use `Promote <from> → <to> (<N> commits)`; for any other
-  multi-commit PR, write a concise imperative summary of the change — same tone and casing as a
-  commit subject (lowercase, no trailing period).
+  multi-commit PR, write a `type(scope): subject` header in the Conventional Commit format from
+  `commit.instructions.md` — a concise imperative summary of the change (lowercase, no trailing
+  period). Feature PRs squash-merge, so this title becomes the squash commit's subject and must read
+  as a valid commit. (The `Promote …` form above is the one deliberate exception — it's a generated,
+  self-documenting marker, not a change subject.)
 
 ## Body
 
