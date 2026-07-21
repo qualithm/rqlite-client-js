@@ -78,6 +78,17 @@ Commands below are described by policy only — run `dx <cmd> --help` for flags.
   promotion hops carry `Refs #N` (no close, no link), and the `Closes #N` lands on the
   default-branch hop. `dx git feature`/`dx git merge` harvest these trailers — see
   `pr.instructions.md` and `commit.instructions.md`.
+- **Releasing** — publishable repos release by pushing a semver tag (`X.Y.Z`), which triggers the
+  publish workflow; bump `version` and cut a release **only when a change alters the published
+  artifact** — a bump to the shipped manifest's `dependencies`/`peerDependencies`, or to the
+  package's own source/`dist`. Changes that never reach a consumer don't warrant a release:
+  `devDependencies` bumps, `overrides`/`resolutions` (root-only — ignored when the package is
+  installed as a dependency), lockfile-only churn, and CI/docs edits. So a dependency bump forces a
+  release only if it changes a byte a consumer resolves; a dev-only or override-only audit fix does
+  not. Size the bump by consumer-visible impact per semver — a patch for a backward-compatible
+  dependency or security fix (the usual audit case), a minor if it widens the public surface, a
+  major if it breaks consumers (e.g. a changed exported type or a raised `peerDependencies` range);
+  a patch is the common default, never an automatic one.
 - **Worktrees** — when more than one task is in flight, prefer
   `git worktree add ../<repo>-<branch> <branch>` over switching branches in the primary clone, so
   the primary checkout stays on `development` and background tooling isn't disrupted.
