@@ -6,8 +6,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        One uniform format so any work can be picked up cold. Set **Initiative**, **Size**, and
-        **Status** on the Engineering board after opening. Keep the running state in **comments**
+        One uniform format so any work can be picked up cold. Set **Initiative**, **Size**
+        (agent-session effort: XS one-file tweak → XL split-before-pickup), and **Status** on the
+        Engineering board after opening. Keep the running state in **comments**
         (end each session with a Snapshot comment, posted via `dx project snapshot` for a consistent
         format).
   - type: textarea

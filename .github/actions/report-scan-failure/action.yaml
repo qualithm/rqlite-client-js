@@ -2,14 +2,14 @@
 
 name: "Report or resolve scan failure"
 description: >
-  Files (or bumps) a `security-audit`-labeled issue when a scheduled scan step genuinely fails, or
-  closes it once the scan is green again and nobody has claimed it yet. Dedupes on the issue title,
-  so re-runs of a still-failing scan never pile up duplicate issues. The label deliberately keeps
-  these off the Engineering board by default (Decision #66) — promote one manually with `dx project
-  add` if it turns into real, multi-session work.
+  Files (or bumps) a labelled issue when an automated check reports a problem, or closes it once the
+  check is healthy again and nobody has claimed it yet. Dedupes on the issue title, so re-runs never
+  pile up duplicate issues. The default `security-audit` label (and the `off-board` label) keep
+  these off the Engineering board (Decision #66) — promote one manually with `dx project add` if it
+  turns into real, multi-session work.
 inputs:
   mode:
-    description: "report (scan just failed) or resolve (scan just passed)"
+    description: "report (check just failed) or resolve (check just passed)"
     required: true
   title:
     description: "Stable anchor used as both the issue title and the dedup key."
@@ -17,6 +17,18 @@ inputs:
   github-token:
     description: "Token with this repo's issues:write (e.g. secrets.GITHUB_TOKEN)."
     required: true
+  label:
+    description: >
+      Space/comma-separated labels to apply and dedup under (default: security-audit). Include an
+      off-board marker (security-audit or off-board) to keep the issue off the Engineering board.
+    required: false
+    default: "security-audit"
+  body:
+    description:
+      "Issue body used when filing a new issue in mode=report. Defaults to a generic scan-failure
+      body."
+    required: false
+    default: ""
   run-url:
     description: "URL of the workflow run to link from the issue (mode: report)."
     required: false
@@ -30,5 +42,7 @@ runs:
         REPO: ${{ github.repository }}
         MODE: ${{ inputs.mode }}
         TITLE: ${{ inputs.title }}
+        LABELS: ${{ inputs.label }}
+        BODY: ${{ inputs.body }}
         RUN_URL: ${{ inputs.run-url }}
       run: ${{ github.action_path }}/run.sh
