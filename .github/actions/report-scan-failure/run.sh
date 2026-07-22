@@ -5,24 +5,49 @@ set -euo pipefail
 
 : "${REPO:?}" "${MODE:?}" "${TITLE:?}"
 
+# Labels to apply and dedup under; accept space- or comma-separated input.
+LABELS="${LABELS:-security-audit}"
+LABELS="${LABELS//,/ }"
+
 existing="$(gh issue list --repo "$REPO" --state open --search "\"${TITLE}\"" \
   --json number,title --jq "[.[] | select(.title == \"${TITLE}\")][0].number // empty")"
 
 case "$MODE" in
 report)
-  # security-audit deliberately keeps these off the Engineering board (issue-templates/
-  # add-to-project.yaml excludes it) — see Decision #66:
-  # https://github.com/orgs/qualithm/discussions/66. The label must exist before `gh issue
-  # create --label` can attach it, so ensure it every run; --force makes this idempotent.
-  gh label create security-audit --repo "$REPO" --color "b60205" --force \
-    --description "Automated scan failure filed by report-scan-failure; kept off the Engineering board (Decision #66)" \
-    >/dev/null
+  # Ensure every requested label exists before `gh issue create --label` can
+  # attach it. `security-audit` and `off-board` are the off-the-Engineering-board
+  # markers (issue-templates/add-to-project.yaml excludes both) and keep their
+  # canonical styling; see Decision #66:
+  # https://github.com/orgs/qualithm/discussions/66. Any other label is created
+  # if missing with a neutral colour. --force makes the marker creates idempotent.
+  for l in $LABELS; do
+    case "$l" in
+    security-audit)
+      gh label create security-audit --repo "$REPO" --color "b60205" --force \
+        --description "Automated scan failure filed by report-scan-failure; kept off the Engineering board (Decision #66)" \
+        >/dev/null
+      ;;
+    off-board)
+      gh label create off-board --repo "$REPO" --color "5319e7" --force \
+        --description "Automation-filed issue kept off the Engineering board (Decision #66)" \
+        >/dev/null
+      ;;
+    *)
+      gh label create "$l" --repo "$REPO" --color "ededed" >/dev/null 2>&1 || true
+      ;;
+    esac
+  done
+
+  label_args=()
+  for l in $LABELS; do label_args+=(--label "$l"); done
 
   if [[ -n "$existing" ]]; then
     gh issue comment "$existing" --repo "$REPO" --body "Still failing as of ${RUN_URL}."
     echo "report-scan-failure: bumped existing issue #${existing}"
   else
-    body="### Why
+    body="${BODY:-}"
+    if [[ -z "$body" ]]; then
+      body="### Why
 The scheduled scan is failing, which means it found something real rather than a one-off flake
 — someone needs to look at the failing run and fix the underlying problem.
 
@@ -38,7 +63,8 @@ addressing the finding.
 
 ### Links
 - Failing run: ${RUN_URL}"
-    url="$(gh issue create --repo "$REPO" --title "$TITLE" --body "$body" --label security-audit)"
+    fi
+    url="$(gh issue create --repo "$REPO" --title "$TITLE" --body "$body" "${label_args[@]}")"
     echo "report-scan-failure: filed ${url}"
   fi
   ;;
