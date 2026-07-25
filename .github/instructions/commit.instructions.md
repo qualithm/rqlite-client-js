@@ -88,9 +88,3 @@ revert: feat(api): add beta endpoints
 
 Reverts commit 1a2b3c4.
 ```
-
----
-
-## Release Guidance
-
-`feat` → minor | `fix`/`perf` → patch | `BREAKING CHANGE`/`!` → major
