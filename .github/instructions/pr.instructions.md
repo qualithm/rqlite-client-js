@@ -13,7 +13,9 @@ instead of hand-writing the title/body — it pushes the current branch and crea
 PR into `--base` (default `development`) applying these exact rules, including the harvested
 `Closes`/`Refs` footer. It refuses to guess a title once a branch carries more than one commit (pass
 `--title`) since summarizing intent across commits needs judgement a script doesn't have; run with
-`--dry-run` to preview the title/body before pushing anything.
+`--dry-run` to preview the title/body before pushing anything. It also aborts, before any push, on a
+title that isn't a Conventional Commit header — for a single-commit branch that title is the
+commit's own subject, so fix it with `git commit --amend`, not `--title`.
 
 ## Title
 
