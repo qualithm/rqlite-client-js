@@ -95,24 +95,6 @@ The engine behind the economics — the storage and analytics stack — stays be
 _how_ we can afford to make good decisions on the builder's behalf, not the pitch. Nobody chooses
 Qualithm for the database; they choose it because they shipped without becoming an expert.
 
-## What Qualithm is
-
-The product surfaces an agent may touch, named by what they do for the builder, not by their
-internals:
-
-- **Connect** — `device-sdk-js`, `mqtt-wire-js`: get any software-capable device sending data over
-  standard MQTT-over-TLS, provisioned with certificates.
-- **Store and query** — the telemetry data platform (`varv-rs`, `sagitta-rs`, the
-  `arrow-flight-client-js` / `kafka-client-js` / `rqlite-client-js` clients, and the `logql-syntax`
-  / `traceql-syntax` / `ratatoskr-go` parsers): where device data lands and becomes queryable.
-  Means, not message — see "Why this holds".
-- **Use and control** — `platform` (API), `app` (dashboard), `id` (auth), and `operator-go` /
-  `operator-mcp` (the human and agent control surfaces).
-- **Reach** — `website`, `docs`.
-
-How Qualithm is _built_ (the software factory — `mill`, `millwright`, `wheelhouse`, `dx` — and
-shared `ui` / `cloud`) is means, not product: see `project-context.instructions.md`, not here.
-
 ## How components derive from strategy
 
 The strategy doesn't enumerate components — they change; it doesn't. But every component must trace
@@ -125,11 +107,10 @@ tests decide whether one belongs:
   promise can't be bought — above all the cost/scale curve, which _is_ the product and can't be
   outsourced.
 
-Per-component rationale (why Kubernetes, why rqlite, why build `varv`) lives in Decisions, each
-deriving from this policy — not here.
+A component that serves the builder is product; one that serves how Qualithm is _built_ (the
+software factory) is means, and is out of scope here. Per-component rationale (why Kubernetes, why
+rqlite, why build `varv`) lives in Decisions, each deriving from this policy — not here.
 
-## Where live context lives
-
-Strategy, not status. For what's being worked on, what's `Ready` to pick up, and the decisions new
-work builds on, see `project-context.instructions.md` (the Engineering board and Decisions
-discussions). Give durable "why" a home here or in a Decision — never leave it only in chat.
+This file is durable "why", never status — for what's in flight see
+`project-context.instructions.md`. Give any durable "why" a home here or in a Decision, never only
+in chat.
