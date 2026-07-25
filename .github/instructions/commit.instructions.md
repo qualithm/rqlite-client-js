@@ -1,9 +1,14 @@
 ---
-applyTo: "**/COMMIT_EDITMSG"
+applyTo: "**"
 description: "Guidelines for writing commit messages"
 ---
 
 # Commit Guidelines
+
+These rules apply to every commit however it is written — `git commit -m` in a terminal included,
+not just an editor session on `COMMIT_EDITMSG`. `dx git feature` enforces the header format on the
+PR title, which for a single-commit branch **is** that commit's subject, so a non-conforming header
+blocks the PR.
 
 **Default: Generate a single-line commit message (header only). Include body/footer only when
 explicitly requested.**
