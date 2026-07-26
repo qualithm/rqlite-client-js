@@ -61,12 +61,18 @@ Commands below are described by policy only — run `dx <cmd> --help` for flags.
 
 ## Branching model
 
-- **Core branches** — `development` (integration, direct pushes) → `test` (staging) → `main`
-  (release). Promotion is one-way and adjacent-hop only: `test` PRs come from `development`, `main`
-  PRs from `test`. Open or refresh promotion PRs with `dx git merge`. Never skip a hop or run the
-  chain backwards — three-branch repos enforce this with a required `Source Branch` check.
-  Single-`main` repos (`ui`, `dx`, the `*-example` templates) have no chain, but still route
-  issue-resolving work through a feature-branch PR into `main`, never a direct push.
+- **Core branches** — `development` (integration) → `test` (staging) → `main` (release). All three
+  are PR-gated on a required `CI Required` check; nothing lands on any of them by direct push.
+  Promotion is one-way and adjacent-hop only: `test` PRs come from `development`, `main` PRs from
+  `test`. Open or refresh promotion PRs with `dx git merge`. Never skip a hop or run the chain
+  backwards — three-branch repos enforce this with a required `Source Branch` check on the `test`
+  and `main` hops (a PR into `development` comes from an arbitrary feature branch, so that check
+  doesn't apply there). Single-`main` repos (`ui`, `dx`, the `*-example` templates) have no chain,
+  but still route issue-resolving work through a feature-branch PR into `main`, never a direct push.
+- **CI tiers** — a PR into `development` runs the cheap tier (lint, format, typecheck, unit tests);
+  the `test` and `main` hops add the expensive jobs (coverage gates, cross-runtime matrices, doc
+  builds, packaging). Templates key this off the `is-main` output of the `changes` job, so a
+  development-targeted PR never runs an artifact-producing or packaging job.
 - **Feature branches** — cut from `development` (or `main` for single-branch repos), `kebab-case`,
   PR'd back into `development` (never `test`/`main` directly) with `dx git feature`. Delete the
   branch (local and remote) as soon as its PR merges — check the PR's merge state
