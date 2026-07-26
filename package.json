@@ -95,7 +95,8 @@
     "@babel/core": "7.29.6",
     "vite": "8.0.16",
     "markdown-it": "14.2.0",
-    "brace-expansion": "5.0.7",
+    "brace-expansion": "5.0.8",
+    "postcss": "8.5.23",
     "linkify-it": "5.0.2"
   }
 }
