@@ -14,12 +14,14 @@ Commands below are described by policy only — run `dx <cmd> --help` for flags.
 - **`README.md`** — what the repo is and how to use it; no plan or status.
 - **Engineering board** — org GitHub Projects **#3**, the plan and live state. Work items are flat,
   pickable issues grouped by `Initiative` + `Status`, with the running snapshot in each issue's
-  comments. Browse with `dx project board`; the pickup queue is `Status: Ready` with no assignee
-  (`dx project items`). Issue bodies follow the work-item form (`### Why` / `### Scope / contract` /
+  comments. Browse with `dx project board`; the pickup queue is `Status: Ready`
+  (`dx project items`). `Status` is the authoritative claim marker — claiming writes `In progress`,
+  and assignment is a human convention layered on top, since a GitHub App's `[bot]` identity can
+  never be an assignee. Issue bodies follow the work-item form (`### Why` / `### Scope / contract` /
   `### Acceptance` / `### Links`). `dx project lint` flags bodies that drift or lack an
   `Initiative`/`Size`; `dx project audit` flags state drift (`Status` vs. real issue/PR state, an
-  `In progress` item unassigned or silent >14 days, a `Ready`/`Backlog` item already assigned);
-  `dx project stats` rolls it up.
+  `In progress` item silent >14 days, a `Ready`/`Backlog` item already assigned); `dx project stats`
+  rolls it up.
 - **Size** — one agent's session effort: `XS` a one-file/one-command tweak; `S` a single file plus
   tests, one session; `M` a few files, one session; `L` multi-file or multi-session; `XL` too big —
   split it before pickup rather than claiming it. Set it when filing; `lint` requires it on every
@@ -97,4 +99,8 @@ Commands below are described by policy only — run `dx <cmd> --help` for flags.
   a patch is the common default, never an automatic one.
 - **Worktrees** — when more than one task is in flight, prefer
   `git worktree add ../<repo>-<branch> <branch>` over switching branches in the primary clone, so
-  the primary checkout stays on `development` and background tooling isn't disrupted.
+  the primary checkout stays on `development` and background tooling isn't disrupted. Review them
+  with `dx git worktree list` (every repo at once; flags records whose directory is gone, and
+  directories left behind with no record) and tear one down with `dx git worktree remove`, which
+  prunes and then verifies the directory actually went away — a plain `git worktree remove` can be
+  silently undone by an editor buffer re-saving into the removed path.
