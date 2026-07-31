@@ -99,4 +99,8 @@ Commands below are described by policy only — run `dx <cmd> --help` for flags.
   a patch is the common default, never an automatic one.
 - **Worktrees** — when more than one task is in flight, prefer
   `git worktree add ../<repo>-<branch> <branch>` over switching branches in the primary clone, so
-  the primary checkout stays on `development` and background tooling isn't disrupted.
+  the primary checkout stays on `development` and background tooling isn't disrupted. Review them
+  with `dx git worktree list` (every repo at once; flags records whose directory is gone, and
+  directories left behind with no record) and tear one down with `dx git worktree remove`, which
+  prunes and then verifies the directory actually went away — a plain `git worktree remove` can be
+  silently undone by an editor buffer re-saving into the removed path.
