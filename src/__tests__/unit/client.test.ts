@@ -34,6 +34,24 @@ function mockFetch(response: MockResponseInit): ReturnType<typeof vi.fn> {
   return fetchMock
 }
 
+/** Stub `fetch` with one response per call, repeating the last once exhausted. */
+function mockFetchSequence(responses: MockResponseInit[]): ReturnType<typeof vi.fn> {
+  let call = 0
+  const fetchMock = vi.fn().mockImplementation(async () => {
+    const response = responses[Math.min(call, responses.length - 1)]
+    call++
+    return Promise.resolve({
+      ok: response.ok,
+      status: response.status,
+      json: vi.fn().mockResolvedValue(response.data ?? {}),
+      text: vi.fn().mockResolvedValue(response.text ?? ""),
+      headers: response.headers ?? new Headers()
+    })
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  return fetchMock
+}
+
 // =============================================================================
 // Tests
 // =============================================================================
@@ -176,6 +194,226 @@ describe("RqliteClient", () => {
         expect(AuthenticationError.isError(result.error)).toBe(true)
         expect(result.error.message).toBe("forbidden")
       }
+    })
+  })
+
+  describe("authProvider", () => {
+    function basic(username: string, password: string): string {
+      return `Basic ${btoa(`${username}:${password}`)}`
+    }
+
+    function authOf(mock: ReturnType<typeof vi.fn>, call: number): string | undefined {
+      const headers = mock.mock.calls[call]?.[1]?.headers as Record<string, string> | undefined
+      return headers?.Authorization
+    }
+
+    it("resolves credentials from the provider", async () => {
+      const fetchMock = mockFetch({ ok: true, status: 200 })
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        authProvider: () => ({ username: "admin", password: "secret" }),
+        clusterDiscovery: false
+      })
+
+      await client.get("/status")
+
+      expect(authOf(fetchMock, 0)).toBe(basic("admin", "secret"))
+    })
+
+    it("awaits an async provider", async () => {
+      const fetchMock = mockFetch({ ok: true, status: 200 })
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        authProvider: async () => Promise.resolve({ username: "async", password: "pw" }),
+        clusterDiscovery: false
+      })
+
+      await client.get("/status")
+
+      expect(authOf(fetchMock, 0)).toBe(basic("async", "pw"))
+    })
+
+    it("takes precedence over static auth", async () => {
+      const fetchMock = mockFetch({ ok: true, status: 200 })
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        auth: { username: "static", password: "old" },
+        authProvider: () => ({ username: "rotated", password: "new" }),
+        clusterDiscovery: false
+      })
+
+      await client.get("/status")
+
+      expect(authOf(fetchMock, 0)).toBe(basic("rotated", "new"))
+    })
+
+    it("caches the resolved credential across requests", async () => {
+      mockFetch({ ok: true, status: 200 })
+      const provider = vi.fn().mockReturnValue({ username: "admin", password: "secret" })
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        authProvider: provider,
+        clusterDiscovery: false
+      })
+
+      await client.get("/status")
+      await client.get("/status")
+      await client.get("/status")
+
+      expect(provider).toHaveBeenCalledTimes(1)
+    })
+
+    it("re-resolves and retries once on 401", async () => {
+      const fetchMock = mockFetchSequence([
+        { ok: false, status: 401 },
+        { ok: true, status: 200, data: { store: {} } }
+      ])
+      const provider = vi
+        .fn()
+        .mockReturnValueOnce({ username: "admin", password: "old" })
+        .mockReturnValueOnce({ username: "admin", password: "new" })
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        authProvider: provider,
+        clusterDiscovery: false
+      })
+
+      const result = await client.get("/status")
+
+      expect(isOk(result)).toBe(true)
+      expect(provider).toHaveBeenCalledTimes(2)
+      expect(authOf(fetchMock, 0)).toBe(basic("admin", "old"))
+      expect(authOf(fetchMock, 1)).toBe(basic("admin", "new"))
+    })
+
+    it("retries at most once when the fresh credential is also rejected", async () => {
+      const fetchMock = mockFetchSequence([
+        { ok: false, status: 401 },
+        { ok: false, status: 401 }
+      ])
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        authProvider: () => ({ username: "admin", password: "stale" }),
+        clusterDiscovery: false
+      })
+
+      const result = await client.get("/status")
+
+      expect(isErr(result)).toBe(true)
+      if (!result.ok) {
+        expect(AuthenticationError.isError(result.error)).toBe(true)
+        expect(result.error.message).toBe("unauthorized")
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it("does not retry a 403", async () => {
+      const fetchMock = mockFetch({ ok: false, status: 403 })
+      const provider = vi.fn().mockReturnValue({ username: "admin", password: "secret" })
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        authProvider: provider,
+        clusterDiscovery: false
+      })
+
+      const result = await client.get("/status")
+
+      expect(isErr(result)).toBe(true)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(provider).toHaveBeenCalledTimes(1)
+    })
+
+    it("collapses concurrent refreshes into a single provider call", async () => {
+      mockFetchSequence([
+        { ok: false, status: 401 },
+        { ok: false, status: 401 },
+        { ok: true, status: 200, data: { store: {} } },
+        { ok: true, status: 200, data: { store: {} } }
+      ])
+      const provider = vi.fn().mockResolvedValue({ username: "admin", password: "secret" })
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        authProvider: provider,
+        clusterDiscovery: false
+      })
+
+      await Promise.all([client.get("/status"), client.get("/status")])
+
+      // One initial resolve plus one shared refresh, not one refresh per rejected request.
+      expect(provider).toHaveBeenCalledTimes(2)
+    })
+
+    it("does not invoke the provider when only static auth is configured", async () => {
+      const fetchMock = mockFetch({ ok: true, status: 200 })
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        auth: { username: "admin", password: "secret" },
+        clusterDiscovery: false
+      })
+
+      await client.get("/status")
+
+      expect(authOf(fetchMock, 0)).toBe(basic("admin", "secret"))
+    })
+
+    it("re-resolves and retries once on 401 from a text endpoint", async () => {
+      const fetchMock = mockFetchSequence([
+        { ok: false, status: 401 },
+        { ok: true, status: 200, text: "[+]node ok\n[Leader]" }
+      ])
+      const provider = vi
+        .fn()
+        .mockReturnValueOnce({ username: "admin", password: "old" })
+        .mockReturnValueOnce({ username: "admin", password: "new" })
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        authProvider: provider,
+        clusterDiscovery: false
+      })
+
+      const result = await client.ready()
+
+      expect(isOk(result)).toBe(true)
+      if (result.ok) {
+        expect(result.value.ready).toBe(true)
+        expect(result.value.isLeader).toBe(true)
+      }
+      expect(authOf(fetchMock, 1)).toBe(basic("admin", "new"))
+    })
+
+    it("returns AuthenticationError from a text endpoint when the refresh does not help", async () => {
+      mockFetchSequence([
+        { ok: false, status: 401 },
+        { ok: false, status: 401 }
+      ])
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        authProvider: () => ({ username: "admin", password: "stale" }),
+        clusterDiscovery: false
+      })
+
+      const result = await client.ready()
+
+      expect(isErr(result)).toBe(true)
+      if (!result.ok) {
+        expect(result.error.message).toBe("unauthorized")
+      }
+    })
+
+    it("sends the provider credential on background peer discovery", async () => {
+      const fetchMock = mockFetch({ ok: true, status: 200, data: { nodes: [] } })
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        authProvider: () => ({ username: "admin", password: "secret" }),
+        clusterDiscovery: true
+      })
+
+      await client.get("/status")
+      await vi.advanceTimersByTimeAsync(0)
+
+      const discovery = fetchMock.mock.calls.find(([url]) => String(url).includes("/nodes"))
+      const headers = discovery?.[1]?.headers as Record<string, string> | undefined
+      expect(headers?.Authorization).toBe(basic("admin", "secret"))
     })
   })
 
