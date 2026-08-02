@@ -20,7 +20,7 @@ dependencies — uses native `fetch`.
   failure
 - **Multi-host seeds** — supply additional seed nodes for bootstrapping via `hosts`
 - **Retry with backoff** — configurable exponential backoff
-- **Authentication** — HTTP basic auth
+- **Authentication** — HTTP basic auth, static or resolved on demand for rotating credentials
 - **TLS & mTLS** — HTTPS via native fetch; custom `fetch` injection for client certificates
 - **Cluster inspection** — node status, readiness, and cluster listing
 - **Result types** — `Result<T, E>` discriminated unions, no thrown exceptions
@@ -132,6 +132,28 @@ const client = createRqliteClient({
 ```
 
 See [`examples/mtls.ts`](examples/mtls.ts) for Bun and Deno examples.
+
+#### Rotating Credentials
+
+When the rqlite password rotates, supply `authProvider` instead of `auth` so a new value is adopted
+without reconstructing the client:
+
+```ts
+const client = createRqliteClient({
+  host: "localhost:4001",
+  authProvider: async () => ({
+    username: "admin",
+    password: await readFile("/var/run/secrets/rqlite/password", "utf8")
+  })
+})
+```
+
+The resolved credential is cached and reused across requests. When the server answers `401`, the
+client discards it, calls the provider once more, and replays that request a single time — a second
+rejection surfaces as an `AuthenticationError` rather than looping. Concurrent refreshes collapse
+into one provider invocation, and `403` is never retried, since it means the credential is valid but
+unauthorized. `authProvider` takes precedence over `auth` when both are set; static `auth` behaves
+exactly as before.
 
 ### Execute (Writes)
 
