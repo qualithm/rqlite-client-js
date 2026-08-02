@@ -19,6 +19,7 @@ import type {
   RequestOptions as RequestOpts,
   RequestResult,
   RqliteAuth,
+  RqliteAuthProvider,
   RqliteConfig,
   SqlValue
 } from "./types.js"
@@ -57,7 +58,8 @@ const DEFAULT_RETRY_BASE_DELAY = 100
 export class RqliteClient {
   private readonly baseUrl: string
   private readonly allowedSchemes: Set<string>
-  private readonly authHeader: string | undefined
+  private readonly staticAuthHeader: string | undefined
+  private readonly authProvider: RqliteAuthProvider | undefined
   private readonly defaultTimeout: number
   private readonly config: RqliteConfig
   private readonly followRedirects: boolean
@@ -71,12 +73,16 @@ export class RqliteClient {
   private peers: string[]
   private _destroyed = false
   private _peersDiscovered = false
+  /** Last header resolved from `authProvider`; discarded when the server rejects it. */
+  private cachedAuthHeader: string | undefined
+  private refreshInFlight: Promise<string> | undefined
 
   constructor(config: RqliteConfig) {
     const scheme = config.tls === true ? "https" : "http"
     this.baseUrl = `${scheme}://${config.host}`
     this.allowedSchemes = config.tls === true ? new Set(["https:"]) : new Set(["http:", "https:"])
-    this.authHeader = config.auth ? encodeBasicAuth(config.auth) : undefined
+    this.staticAuthHeader = config.auth ? encodeBasicAuth(config.auth) : undefined
+    this.authProvider = config.authProvider
     this.defaultTimeout = config.timeout ?? 10_000
     this.config = config
     this.followRedirects = config.followRedirects ?? true
@@ -463,8 +469,9 @@ export class RqliteClient {
   private refreshPeers(baseUrl: string): void {
     const url = buildUrl(baseUrl, "/nodes")
     const headers: Record<string, string> = {}
-    if (this.authHeader !== undefined) {
-      headers.Authorization = this.authHeader
+    const auth = this.cachedAuthHeader ?? this.staticAuthHeader
+    if (auth !== undefined) {
+      headers.Authorization = auth
     }
 
     const controller = new AbortController()
@@ -510,6 +517,52 @@ export class RqliteClient {
       })
   }
 
+  /** Resolve the `Authorization` header, reusing the cached provider result when present. */
+  private async authorization(provider: RqliteAuthProvider): Promise<string> {
+    return this.cachedAuthHeader ?? this.refreshAuthorization(provider)
+  }
+
+  /**
+   * Discard the cached credential and resolve a fresh one.
+   * Concurrent callers share a single provider invocation.
+   */
+  private async refreshAuthorization(provider: RqliteAuthProvider): Promise<string> {
+    this.cachedAuthHeader = undefined
+    this.refreshInFlight ??= this.resolveFromProvider(provider).finally(() => {
+      this.refreshInFlight = undefined
+    })
+    return this.refreshInFlight
+  }
+
+  private async resolveFromProvider(provider: RqliteAuthProvider): Promise<string> {
+    const header = encodeBasicAuth(await provider())
+    this.cachedAuthHeader = header
+    return header
+  }
+
+  /**
+   * Re-resolve credentials after a rejected response.
+   * Returns `undefined` when the response does not warrant a retry.
+   */
+  private async maybeReauth(status: number, reauthed: boolean): Promise<string | undefined> {
+    const provider = this.authProvider
+    if (status !== 401 || reauthed || provider === undefined) {
+      return undefined
+    }
+    return this.refreshAuthorization(provider)
+  }
+
+  private requestHeaders(auth: string | undefined, json: boolean): Record<string, string> {
+    const headers: Record<string, string> = {}
+    if (auth !== undefined) {
+      headers.Authorization = auth
+    }
+    if (json) {
+      headers["Content-Type"] = "application/json"
+    }
+    return headers
+  }
+
   /**
    * Check for a redirect response and validate the Location header.
    * Returns `ok(url)` for a valid redirect, `err(...)` for a disallowed one,
@@ -541,13 +594,9 @@ export class RqliteClient {
 
     const timeout = options.timeout ?? this.defaultTimeout
 
-    const headers: Record<string, string> = {}
-    if (this.authHeader !== undefined) {
-      headers.Authorization = this.authHeader
-    }
-    if (options.body !== undefined) {
-      headers["Content-Type"] = "application/json"
-    }
+    // Static credentials resolve without awaiting, so their request path is unchanged.
+    const provider = this.authProvider
+    let auth = provider === undefined ? this.staticAuthHeader : await this.authorization(provider)
 
     const bodyStr = options.body !== undefined ? JSON.stringify(options.body) : undefined
     let lastError: ClientError | undefined
@@ -562,10 +611,14 @@ export class RqliteClient {
 
     // A redirect target may point outside the peer list — track it separately.
     let redirectUrl: string | undefined
+    let reauthed = false
 
     while (attemptCount <= this.maxRetries && redirects <= this.maxRedirects) {
       const baseUrl = redirectUrl ?? peers[peerIndex % peers.length]
       const url = buildUrl(baseUrl, options.path, options.params)
+
+      // Rebuilt per attempt so a refreshed credential never rewrites an earlier request.
+      const headers = this.requestHeaders(auth, options.body !== undefined)
 
       if (attemptCount > 0 && redirectUrl === undefined && lastError !== undefined) {
         await sleep(jitteredDelay(this.retryBaseDelay, attemptCount - 1))
@@ -596,6 +649,14 @@ export class RqliteClient {
           redirectUrl = redirectResult.value
           lastError = new ConnectionError("leader redirect", { url: redirectUrl })
           redirects++
+          continue
+        }
+
+        // A rotated credential is adopted here: re-resolve once and replay the request.
+        const refreshed = await this.maybeReauth(response.status, reauthed)
+        if (refreshed !== undefined) {
+          reauthed = true
+          auth = refreshed
           continue
         }
 
@@ -643,10 +704,9 @@ export class RqliteClient {
 
     const timeout = this.defaultTimeout
 
-    const headers: Record<string, string> = {}
-    if (this.authHeader !== undefined) {
-      headers.Authorization = this.authHeader
-    }
+    // Static credentials resolve without awaiting, so their request path is unchanged.
+    const provider = this.authProvider
+    let auth = provider === undefined ? this.staticAuthHeader : await this.authorization(provider)
 
     let lastError: ClientError | undefined
     let redirects = 0
@@ -655,10 +715,14 @@ export class RqliteClient {
     let peerIndex = 0
     let attemptCount = 0
     let redirectUrl: string | undefined
+    let reauthed = false
 
     while (attemptCount <= this.maxRetries && redirects <= this.maxRedirects) {
       const baseUrl = redirectUrl ?? peers[peerIndex % peers.length]
       const url = buildUrl(baseUrl, path, params)
+
+      // Rebuilt per attempt so a refreshed credential never rewrites an earlier request.
+      const headers = this.requestHeaders(auth, false)
 
       if (attemptCount > 0 && redirectUrl === undefined && lastError !== undefined) {
         await sleep(jitteredDelay(this.retryBaseDelay, attemptCount - 1))
@@ -692,6 +756,12 @@ export class RqliteClient {
         }
 
         if (response.status === 401) {
+          const refreshed = await this.maybeReauth(response.status, reauthed)
+          if (refreshed !== undefined) {
+            reauthed = true
+            auth = refreshed
+            continue
+          }
           return err(new AuthenticationError("unauthorized"))
         }
 

@@ -29,6 +29,7 @@ export type {
   RequestOptions,
   RequestResult,
   RqliteAuth,
+  RqliteAuthProvider,
   RqliteConfig,
   SqlStatement,
   SqlValue,
