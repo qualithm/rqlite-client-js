@@ -34,6 +34,15 @@ export type RqliteAuth = {
   password: string
 }
 
+/**
+ * Resolves rqlite credentials on demand.
+ *
+ * Supply this instead of static `auth` when the credential rotates, so a new
+ * value is adopted without reconstructing the client. The result is cached and
+ * re-resolved only when the server rejects a request with HTTP 401.
+ */
+export type RqliteAuthProvider = () => RqliteAuth | Promise<RqliteAuth>
+
 /** Configuration for the rqlite client. */
 export type RqliteConfig = {
   /** Host and port of the primary rqlite node (e.g. `"localhost:4001"`). */
@@ -50,6 +59,12 @@ export type RqliteConfig = {
   tls?: boolean
   /** Basic authentication credentials. */
   auth?: RqliteAuth
+  /**
+   * Callback resolving basic authentication credentials, for rotating secrets.
+   *
+   * Takes precedence over `auth` when both are set.
+   */
+  authProvider?: RqliteAuthProvider
   /** Default request timeout in milliseconds. */
   timeout?: number
   /** Default consistency level for queries. */
