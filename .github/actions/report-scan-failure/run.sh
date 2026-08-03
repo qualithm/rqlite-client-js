@@ -42,8 +42,21 @@ report)
   for l in $LABELS; do label_args+=(--label "$l"); done
 
   if [[ -n "$existing" ]]; then
-    gh issue comment "$existing" --repo "$REPO" --body "Still failing as of ${RUN_URL}."
-    echo "report-scan-failure: bumped existing issue #${existing}"
+    if [[ -n "${BODY:-}" ]]; then
+      # A caller that supplies a body owns the issue's contents: refresh them in place so a
+      # report whose value lives in the body (a table of findings) can't go stale, and stay
+      # silent when nothing changed so a recurring finding doesn't accrue a comment per run.
+      current="$(gh issue view "$existing" --repo "$REPO" --json body --jq .body)"
+      if [[ "$(printf '%s' "$current" | tr -d '\r')" == "$(printf '%s' "$BODY" | tr -d '\r')" ]]; then
+        echo "report-scan-failure: issue #${existing} already up to date"
+      else
+        gh issue edit "$existing" --repo "$REPO" --body "$BODY" >/dev/null
+        echo "report-scan-failure: refreshed body of issue #${existing}"
+      fi
+    else
+      gh issue comment "$existing" --repo "$REPO" --body "Still failing as of ${RUN_URL}."
+      echo "report-scan-failure: bumped existing issue #${existing}"
+    fi
   else
     body="${BODY:-}"
     if [[ -z "$body" ]]; then
