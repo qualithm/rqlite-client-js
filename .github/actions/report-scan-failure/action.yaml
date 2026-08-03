@@ -4,9 +4,10 @@ name: "Report or resolve scan failure"
 description: >
   Files (or bumps) a labelled issue when an automated check reports a problem, or closes it once the
   check is healthy again and nobody has claimed it yet. Dedupes on the issue title, so re-runs never
-  pile up duplicate issues. The default `security-audit` label (and the `off-board` label) keep
-  these off the Engineering board (Decision #66) — promote one manually with `dx project add` if it
-  turns into real, multi-session work.
+  pile up duplicate issues. When `body` is supplied it is kept in sync on every report, so a check
+  that reports findings in the body rather than pass/fail never shows stale data. The default
+  `security-audit` label (and the `off-board` label) keep these off the Engineering board (Decision
+  #66) — promote one manually with `dx project add` if it turns into real, multi-session work.
 inputs:
   mode:
     description: "report (check just failed) or resolve (check just passed)"
@@ -25,8 +26,9 @@ inputs:
     default: "security-audit"
   body:
     description:
-      "Issue body used when filing a new issue in mode=report. Defaults to a generic scan-failure
-      body."
+      "Issue body for mode=report. Also refreshes an existing issue's body when it differs, so a
+      report whose value lives in the body stays current; an unchanged body is a no-op. Omit it to
+      keep the plain bump-with-a-comment behaviour and the generic scan-failure body."
     required: false
     default: ""
   run-url:
