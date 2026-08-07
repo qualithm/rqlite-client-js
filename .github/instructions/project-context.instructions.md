@@ -52,6 +52,10 @@ Commands below are described by policy only — run `dx <cmd> --help` for flags.
   alternatives already rejected, so you don't relitigate them. To reverse or narrow one,
   `dx decision amend` on the original discussion rather than opening a competing one — the original
   stays as the record, the amendment says what changed.
+- **Before setting `Done`** — walk the issue's `### Acceptance` list. Every unmet item either keeps
+  the issue open or gets its own filed issue **before** you set `Done`; a Snapshot bullet is not a
+  home, because the board shows `Done` while the prose showing otherwise sits unread in a comment.
+  Naming the gap in the same command that closes the issue reads as complete to everyone but you.
 - **End every session** (code or planning-only) — set `Status` (`dx project status`) and post a
   Snapshot (`dx project snapshot`, which owns the format — don't hand-write it). Give every idea
   worth keeping a durable home before you close out: a Decision (the "why") or a Backlog issue (the
