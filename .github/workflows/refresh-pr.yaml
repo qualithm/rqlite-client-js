@@ -37,10 +37,21 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
+      - name: Skip PRs that predate the vendored scripts
+        id: vendored
+        # The checkout is the PR HEAD: a branch opened before this workflow was
+        # synced doesn't carry the scripts, and failing there would read as the
+        # PR's own CI failing. Skip; the first push after rebasing refreshes it.
+        run:
+          test -f .github/actions/refresh-pr/refresh.sh && echo "present=true" >> "$GITHUB_OUTPUT"
+          || echo "present=false" >> "$GITHUB_OUTPUT"
+
       - name: Install zsh
+        if: steps.vendored.outputs.present == 'true'
         run: sudo apt-get install -y zsh
 
       - name: Refresh the PR title/body
+        if: steps.vendored.outputs.present == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run:
