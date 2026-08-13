@@ -17,6 +17,12 @@ PR into `--base` (default `development`) applying these exact rules, including t
 title that isn't a Conventional Commit header — for a single-commit branch that title is the
 commit's own subject, so fix it with `git commit --amend`, not `--title`.
 
+Once the PR is open, the repo's `refresh-pr.yaml` workflow regenerates the body from the live commit
+range on every push, so pushing more commits never leaves the PR page stale and the body CI shows a
+reviewer is always current (dx#317). The title is only refreshed while the branch carries a single
+commit. A hand-edited body is overwritten on the next push — review notes belong in comments, not
+the body.
+
 ## Title
 
 - If the PR carries exactly **one commit**, reuse that commit's header verbatim as the PR title (it
