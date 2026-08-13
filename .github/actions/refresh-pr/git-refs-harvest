@@ -1,0 +1,273 @@
+#!/usr/bin/env python3
+# git-refs-harvest — harvest unique issue references (and their close/ref intent)
+# from the commits in a git range, seeing THROUGH squash-merged promotion hops.
+#
+# Shared by scripts/git-merge (promotion PRs) and scripts/git-feature (feature
+# PRs) so both classify references identically. Emits one `<kind>\t<ref>` line
+# per unique reference in first-seen (oldest-commit-first) order, where <kind>
+# is `close` if the reference was ever written with a closing keyword
+# (close/fix/resolve) and `ref` otherwise. The caller promotes only `close`-kind
+# references to `Closes #N` on the hop into the default branch and leaves a
+# deliberate `Refs #N` as `Refs #N` everywhere (never auto-upgraded — see dx#98).
+#
+# The squash blind spot (dx#121): every repo squash-merges with
+# `squash_merge_commit_message: BLANK`, so a promoted commit's own message is
+# just the PR title — the references live only in PR metadata. Worse, on a
+# 3-branch repo (development→test→main) `dx git feature --base development`
+# demotes a feature's `Closes #N` to `Refs #N` in the PR *body* (correct for a
+# non-default base), so every promotion-hop PR body along the chain reads `Refs`
+# and the original closing keyword survives only in the leaf feature PR's
+# pre-squash *commit messages*. So for each commit we recursively unpack
+# promotion-hop PRs back to their leaf PRs (the technique scripts/changelog-notes
+# uses) and scan each leaf's body AND its pre-squash commit messages, recovering
+# the original keyword. `close` wins over `ref` for the same reference, so a
+# demoted-body `Refs #N` paired with a leaf-commit `Closes #N` classifies as
+# `close`, while a deliberate `Refs #N` (never written as a closer anywhere)
+# stays `ref`.
+#
+# Usage:
+#   git-refs-harvest --repo-dir DIR --range RANGE [--repo owner/name]
+#                    [--delivered-only]
+#
+# --delivered-only (dx#144): harvest references only from commits whose PATCH the
+# range actually delivers — dropping commits that a promotion hop reaches by
+# commit-graph ancestry but whose content is already present in the target (e.g.
+# a direct-to-protected-branch push landed the same patch first). This keeps a
+# `Closes #N` off a hop that doesn't actually carry the referenced commit, so the
+# closing keyword lands on the hop that delivers it. git-merge passes it;
+# git-feature does not (a feature PR's whole range is what it delivers).
+#
+# With no --repo (or when the GitHub API is unreachable) it falls back to the
+# commits' own messages — the offline path scripts/git-refs-promotion-test and
+# unpushed-commit dry-runs rely on.
+import argparse
+import json
+import re
+import subprocess
+import sys
+
+# Promotion-hop PRs come in a couple of title shapes: dx git merge synthesises
+# "Promote <src> → <dst> (N commits)" (Unicode arrow + count), older/manual
+# promotions use a bare ASCII arrow with no count. Match both, and the
+# "Merge <x> into <branch>" shape, treating the count as optional. Kept in sync
+# with scripts/changelog-notes' PROMOTION_TITLE.
+PROMOTION_TITLE = re.compile(
+    r"^(Promote .* (?:→|->) .*|Merge .* into (main|test|development))"
+)
+
+# A single-commit hop reuses the promoted commit's subject as its PR title
+# (scripts/git-merge synthesize_pr), so PROMOTION_TITLE misses it and the leaf
+# never gets unpacked (dx#128). synthesize_pr always opens the PR *body* with
+# "Promotes `<src>` → `<dst>` (N commit…)" regardless of title, and a feature
+# PR body (scripts/git-feature) opens with its own subject — so this marker
+# identifies a promotion hop without ever matching a leaf feature PR.
+PROMOTION_BODY = re.compile(r"^Promotes\s+`[^`]+`\s+(?:→|->)\s+`[^`]+`")
+
+# A keyword immediately followed by an issue reference. Mirrors the grep/awk
+# pattern the zsh harvest_refs used: closing keywords (close/fix/resolve, with
+# their -s/-d/-es/-ed inflections) vs. bare ref/refs, then one or more colon or
+# whitespace separators, then a `#123` or cross-repo `owner/repo#123` reference.
+# Scanned per line so a keyword can never bind to a `#N` on the following line.
+KEYWORD_REF = re.compile(
+    r"(close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)[:\s]+"
+    r"([A-Za-z0-9._/-]+#[0-9]+|#[0-9]+)",
+    re.IGNORECASE,
+)
+CLOSING_KEYWORD = re.compile(r"^(close|fix|resolve)", re.IGNORECASE)
+
+
+def gh_api(repo, path):
+    """Return the parsed JSON body of a `gh api` call, or None on any failure.
+
+    A commit GitHub doesn't know about yet 422s, an unauthenticated/rate-limited
+    call fails, and the offline test stub prints nothing on exit 0 — all of which
+    must degrade to the commit-message fallback rather than raising. Any of these
+    returns None so the caller reads the local commit message instead.
+    """
+    if not repo:
+        return None
+    out = subprocess.run(
+        ["gh", "api", f"repos/{repo}/{path}"], capture_output=True, text=True
+    )
+    if out.returncode != 0 or not out.stdout.strip():
+        return None
+    try:
+        return json.loads(out.stdout)
+    except json.JSONDecodeError:
+        return None
+
+
+def git_output(repo_dir, *args):
+    return subprocess.run(
+        ["git", "-C", repo_dir, *args], capture_output=True, text=True
+    ).stdout
+
+
+class Harvester:
+    def __init__(self, repo, repo_dir, delivered_only=False):
+        self.repo = repo
+        self.repo_dir = repo_dir
+        self.delivered_only = delivered_only
+        self._pr_for_commit = {}
+        self._pr_commits = {}
+
+    def pr_for_commit(self, sha):
+        """The merged PR that introduced `sha` as {number, title, body}, or None."""
+        if sha in self._pr_for_commit:
+            return self._pr_for_commit[sha]
+        prs = gh_api(self.repo, f"commits/{sha}/pulls") or []
+        merged = [p for p in prs if p.get("merged_at")]
+        result = None
+        if merged:
+            p = merged[0]
+            result = {
+                "number": p["number"],
+                "title": p.get("title") or "",
+                "body": p.get("body") or "",
+            }
+        self._pr_for_commit[sha] = result
+        return result
+
+    def pr_commits(self, number):
+        """A PR's pre-squash commits as a list of {sha, message}."""
+        if number in self._pr_commits:
+            return self._pr_commits[number]
+        commits = gh_api(self.repo, f"pulls/{number}/commits") or []
+        result = [
+            {"sha": c.get("sha", ""), "message": (c.get("commit") or {}).get("message", "")}
+            for c in commits
+        ]
+        self._pr_commits[number] = result
+        return result
+
+    def pr_by_number(self, number):
+        """A PR by number as {number, title, body}, or None (offline/missing)."""
+        p = gh_api(self.repo, f"pulls/{number}")
+        if not p:
+            return None
+        return {"number": p["number"], "title": p.get("title") or "", "body": p.get("body") or ""}
+
+    def prs_named_in_title(self, title):
+        """PRs referenced as (#N) in a promotion PR's title.
+
+        Squash-merge links a promoted leaf into the hop's title ("feat: x (#352)
+        (#359)") but not into the commit graph, so the SHA-based walk in gather()
+        dead-ends at the hop's own squash commit. These (#N) references are the
+        only surviving path back to the leaf PRs that carry the original
+        references (dx#245). Only merged PRs are returned.
+        """
+        out = []
+        for number in dict.fromkeys(re.findall(r"\(#(\d+)\)", title)):
+            p = self.pr_by_number(number)
+            if p and p["body"] is not None:
+                out.append(p)
+        return out
+
+    def gather(self, sha, texts, seen, depth=0):
+        """Append every reference-bearing text behind `sha` to `texts`, in order.
+
+        Recurses through promotion-hop PRs to their leaf PRs; at a leaf, collects
+        both the PR body and the pre-squash commit messages. Falls back to the
+        commit's own message when no PR is known (direct pushes, offline runs).
+        """
+        if sha in seen or depth > 12:
+            return
+        seen.add(sha)
+        pr = self.pr_for_commit(sha)
+        if pr and (PROMOTION_TITLE.match(pr["title"]) or PROMOTION_BODY.match(pr["body"])):
+            before = len(texts)
+            for inner in self.pr_commits(pr["number"]):
+                self.gather(inner["sha"], texts, seen, depth + 1)
+            if len(texts) == before:
+                # The hop's pre-squash commits yielded nothing — squash-merge
+                # severs the leaf PR from the commit graph, so the SHA walk hits
+                # a dead end (the hop's own squash commit maps back to itself).
+                # Recover via the hop's title, which names the promoted PRs as
+                # (#N); each named PR's body and pre-squash commits carry the
+                # references the SHA walk could not reach (dx#245).
+                for ref_pr in self.prs_named_in_title(pr["title"]):
+                    if ref_pr["body"]:
+                        texts.append(ref_pr["body"])
+                    for commit in self.pr_commits(ref_pr["number"]):
+                        if commit["message"]:
+                            texts.append(commit["message"])
+            return
+        if pr:
+            if pr["body"]:
+                texts.append(pr["body"])
+            for commit in self.pr_commits(pr["number"]):
+                if commit["message"]:
+                    texts.append(commit["message"])
+        else:
+            texts.append(git_output(self.repo_dir, "log", "--format=%B", "-1", sha))
+
+    def range_shas(self, rng):
+        """The commits in `rng`, oldest-first.
+
+        With `delivered_only` (dx#144), drop commits whose patch is already
+        present in the range's left (target) endpoint: `git cherry <target>
+        <source>` marks those `-` and genuinely-new commits `+`. This keeps a
+        harvested `Closes #N` off a promotion hop that only *reaches* the
+        referenced commit by ancestry while its content was already delivered
+        another way (e.g. a concurrent direct-to-protected-branch push landed the
+        same patch first), so the closing keyword follows the hop that actually
+        carries the commit. Falls back to the unfiltered range when the endpoints
+        don't split on `..` or `git cherry` yields nothing (a cherry failure must
+        never silently drop every reference).
+        """
+        ordered = [s for s in git_output(self.repo_dir, "log", "--reverse", "--format=%H", rng).split("\n") if s]
+        if not self.delivered_only or ".." not in rng:
+            return ordered
+        left, right = rng.split("..", 1)
+        lines = [ln for ln in git_output(self.repo_dir, "cherry", left, right).split("\n") if ln.strip()]
+        if not lines:
+            return ordered
+        delivered = {
+            parts[1]
+            for ln in lines
+            if ln.startswith("+") and len(parts := ln.split(None, 1)) > 1
+        }
+        return [s for s in ordered if s in delivered]
+
+    def harvest(self, rng):
+        texts, seen = [], set()
+        for sha in self.range_shas(rng):
+            self.gather(sha, texts, seen)
+        return classify(texts)
+
+
+def classify(texts):
+    """Reduce reference-bearing text to unique `(kind, ref)` in first-seen order.
+
+    `close` wins over `ref` for the same reference so a keyword written anywhere
+    in a reference's history classifies it as a closer.
+    """
+    order, kinds = [], {}
+    for fragment in texts:
+        for line in fragment.splitlines():
+            for match in KEYWORD_REF.finditer(line):
+                keyword, ref = match.group(1), match.group(2)
+                kind = "close" if CLOSING_KEYWORD.match(keyword) else "ref"
+                if ref not in kinds:
+                    order.append(ref)
+                    kinds[ref] = kind
+                elif kind == "close":
+                    kinds[ref] = "close"
+    return [(kinds[ref], ref) for ref in order]
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--repo-dir", required=True)
+    parser.add_argument("--range", dest="rng", required=True)
+    parser.add_argument("--repo", default="")
+    parser.add_argument("--delivered-only", action="store_true")
+    args = parser.parse_args()
+
+    harvester = Harvester(args.repo, args.repo_dir, delivered_only=args.delivered_only)
+    for kind, ref in harvester.harvest(args.rng):
+        print(f"{kind}\t{ref}")
+
+
+if __name__ == "__main__":
+    main()
