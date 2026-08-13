@@ -1,0 +1,210 @@
+#!/bin/zsh
+# Usage: ./git-pr-synthesize --repo-dir DIR --base BRANCH
+#                            [--title T] [--summary S] [--closes-on B]
+#                            [--json]
+#
+# Synthesizes a feature PR's title and body from the commit range
+# origin/<base>..HEAD, following pr.instructions.md. This is the single
+# implementation shared by scripts/git-feature (which pushes and opens the PR)
+# and the pr-refresh workflow vendored into every enrolled repo (which
+# regenerates an open PR's body on every push) — so a CI-refreshed body is
+# byte-identical to what `dx git feature` would produce. (dx#317, Decision
+# qualithm/discussions#318.)
+#
+# Title: a lone commit reuses its subject verbatim; more than one commit
+# requires --title (summarizing intent needs judgement this script doesn't
+# have). The default output prints title then body separated by a --- line;
+# --json emits {"title": "...", "commits": N, "body": "..."} on stdout instead.
+# Exit 3 when the range has >1 commit and --title is missing, so a caller that
+# keeps an existing PR title can distinguish that case from a real failure.
+#
+# Body: "<summary> (<N> commit<s>).", a blank line, one bullet per commit
+# oldest-first (verbatim subjects), then harvested issue references via the
+# git-refs-harvest sibling: a closing-keyword reference becomes `Closes #N`
+# when --base is the repo's default branch; a deliberate `Refs #N` stays
+# `Refs #N` everywhere (never auto-upgraded — dx#98).
+#
+# Title VALIDATION is the caller's job: git-feature runs git-title-validate
+# (PR titles become squash subjects), while the pr-refresh workflow keeps the
+# PR's existing title and never validates it.
+#
+# Requires: git, zsh; gh only for default-branch/ref-harvest lookups (falls
+# back to `main` / commit messages offline).
+
+set -euo pipefail
+
+SCRIPT_DIR="${0:A:h}"
+
+REPO_DIR=""
+BASE_BRANCH=""
+TITLE=""
+SUMMARY=""
+CLOSES_ON=""
+JSON=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --repo-dir)
+      if [[ $# -lt 2 ]]; then
+        echo "git-pr-synthesize: --repo-dir requires an argument" >&2
+        exit 2
+      fi
+      REPO_DIR="$2"
+      shift 2
+      ;;
+    --repo-dir=*) REPO_DIR="${1#--repo-dir=}"; shift ;;
+    --base|-b)
+      if [[ $# -lt 2 ]]; then
+        echo "git-pr-synthesize: --base requires an argument" >&2
+        exit 2
+      fi
+      BASE_BRANCH="$2"
+      shift 2
+      ;;
+    --base=*) BASE_BRANCH="${1#--base=}"; shift ;;
+    --title|-t)
+      if [[ $# -lt 2 ]]; then
+        echo "git-pr-synthesize: --title requires an argument" >&2
+        exit 2
+      fi
+      TITLE="$2"
+      shift 2
+      ;;
+    --title=*) TITLE="${1#--title=}"; shift ;;
+    --summary)
+      if [[ $# -lt 2 ]]; then
+        echo "git-pr-synthesize: --summary requires an argument" >&2
+        exit 2
+      fi
+      SUMMARY="$2"
+      shift 2
+      ;;
+    --summary=*) SUMMARY="${1#--summary=}"; shift ;;
+    --closes-on)
+      if [[ $# -lt 2 ]]; then
+        echo "git-pr-synthesize: --closes-on requires an argument" >&2
+        exit 2
+      fi
+      CLOSES_ON="$2"
+      shift 2
+      ;;
+    --closes-on=*) CLOSES_ON="${1#--closes-on=}"; shift ;;
+    --json) JSON=true; shift ;;
+    -h|--help)
+      awk '/^#!/{next} /^#/{sub(/^# ?/, ""); print; next} {exit}' "$0"
+      exit 0
+      ;;
+    -*)
+      echo "git-pr-synthesize: unknown option: $1" >&2
+      exit 2
+      ;;
+    *)
+      echo "git-pr-synthesize: unexpected argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -z "$REPO_DIR" ]]; then
+  echo "git-pr-synthesize: --repo-dir is required" >&2
+  exit 2
+fi
+if [[ -z "$BASE_BRANCH" ]]; then
+  echo "git-pr-synthesize: --base is required" >&2
+  exit 2
+fi
+if ! git -C "$REPO_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+  echo "git-pr-synthesize: not a git repo: $REPO_DIR" >&2
+  exit 1
+fi
+if ! git -C "$REPO_DIR" show-ref --verify --quiet "refs/remotes/origin/$BASE_BRANCH"; then
+  echo "git-pr-synthesize: base branch '$BASE_BRANCH' not found on origin" >&2
+  exit 1
+fi
+
+# The branch whose PR merge should CLOSE referenced issues: the explicit
+# --closes-on value, else the repo's GitHub default branch.
+closing_branch() {
+  if [[ -n "$CLOSES_ON" ]]; then
+    echo "$CLOSES_ON"
+    return
+  fi
+  local name
+  name=$(cd "$REPO_DIR" && gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null)
+  [[ -n "$name" ]] && { echo "$name"; return; }
+  echo "main"
+}
+
+# Harvest unique issue references from the commits in a range, delegating to
+# the shared git-refs-harvest sibling so every caller classifies references
+# identically (see-through-squash recovery per dx#121, never auto-upgrading a
+# deliberate `Refs #N` per dx#98). Emits `<kind>\t<ref>` per unique reference,
+# oldest-commit-first.
+#
+# `|| true`: no references (the common case) makes the helper print nothing,
+# and the guard keeps a helper failure (e.g. a `gh` 422 on an unpushed
+# commit's SHA) from killing the script under `set -e`. (See dx#27.)
+harvest_refs() {
+  local range="$1"
+  local repo
+  repo=$(cd "$REPO_DIR" && gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null)
+
+  local -a args=(--repo-dir "$REPO_DIR" --range "$range")
+  [[ -n "$repo" ]] && args+=(--repo "$repo")
+  "$SCRIPT_DIR/git-refs-harvest" "${args[@]}" || true
+}
+
+range="origin/$BASE_BRANCH..HEAD"
+count=$(git -C "$REPO_DIR" rev-list --count "$range" 2>/dev/null)
+[[ -z "$count" ]] && count=0
+
+if [[ "$count" -eq 0 ]]; then
+  echo "git-pr-synthesize: HEAD has no commits ahead of origin/$BASE_BRANCH — nothing to synthesize" >&2
+  exit 1
+fi
+
+if [[ "$count" -eq 1 ]]; then
+  subject=$(git -C "$REPO_DIR" log --format='%s' -1 "$range")
+  [[ -z "$TITLE" ]] && TITLE="$subject"
+elif [[ -z "$TITLE" ]]; then
+  echo "git-pr-synthesize: $count commits ahead of $BASE_BRANCH and no --title — the title" >&2
+  echo "  can't be inferred mechanically; pass --title or keep the PR's existing one." >&2
+  exit 3
+fi
+
+[[ -z "$SUMMARY" ]] && SUMMARY="$TITLE"
+
+body=$(printf '%s (%s commit%s).\n\n%s\n' \
+  "$SUMMARY" "$count" "$([[ $count -eq 1 ]] || echo s)" \
+  "$(git -C "$REPO_DIR" log --reverse --format='- %s' "$range")")
+
+# harvest_refs emits `<kind>\t<ref>` per unique reference; <kind> is `close`
+# only when the trailer used a closing keyword (close/fix/resolve). On the
+# closing hop a `close`-kind reference becomes `Closes #N`; a deliberate
+# `Refs #N` stays `Refs #N` (never auto-upgraded), so partial-progress work
+# isn't closed prematurely. (See dx#98.)
+refs=$(harvest_refs "$range")
+if [[ -n "$refs" ]]; then
+  base_is_closing=false
+  [[ "$BASE_BRANCH" == "$(closing_branch)" ]] && base_is_closing=true
+  block=""
+  while IFS=$'\t' read -r kind ref; do
+    [[ -z "$ref" ]] && continue
+    keyword="Refs"
+    [[ "$base_is_closing" == true && "$kind" == "close" ]] && keyword="Closes"
+    block+="$keyword $ref"$'\n'
+  done <<< "$refs"
+  body="$body"$'\n\n'"$block"
+fi
+
+if $JSON; then
+  TITLE="$TITLE" COUNT="$count" BODY="$body" python3 -c '
+import json, os
+print(json.dumps({
+    "title": os.environ["TITLE"],
+    "commits": int(os.environ["COUNT"]),
+    "body": os.environ["BODY"],
+}))'
+else
+  printf '%s\n---\n%s' "$TITLE" "$body"
+fi
