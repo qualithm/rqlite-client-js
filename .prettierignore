@@ -2,3 +2,7 @@
 build/
 dist/
 node_modules/
+
+# Synced from dx templates; the template in dx is the formatted source.
+.github/workflows/
+.github/actions/
