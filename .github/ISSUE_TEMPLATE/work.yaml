@@ -28,6 +28,19 @@ body:
     validations:
       required: true
   - type: textarea
+    id: consumers
+    attributes:
+      label: Consumers / reachability
+      description:
+        Who consumes this when it lands, and can they reach it (UI, API, SDK, MCP, CLI)? A
+        capability whose only caller is another part of the same change is a flag, not a pass —
+        agent surfaces count as consumers. If the consumer is out of scope, file the follow-up issue
+        as part of this work and link it. Past misses — a run ledger nothing exposed (platform#412),
+        a command outbox no route called (platform#406), templates argued agent-first with no agent
+        surface (platform#408).
+    validations:
+      required: true
+  - type: textarea
     id: acceptance
     attributes:
       label: Acceptance
