@@ -6,11 +6,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        One uniform format so any work can be picked up cold. Set **Initiative**, **Size**
-        (agent-session effort: XS one-file tweak → XL split-before-pickup), and **Status** on the
-        Engineering board after opening. Keep the running state in **comments**
-        (end each session with a Snapshot comment, posted via `dx project snapshot` for a consistent
-        format).
+        One uniform format so any work can be picked up cold. Set **Initiative** (the nearest
+        existing option — list them with `dx project initiative list`; propose a new one only when
+        ~3+ concretely-scoped issues share a narrative no existing option covers) and **Size**
+        (agent-session effort: XS one-file tweak → XL split-before-pickup). Both can be set in the
+        same step as adding the issue: `dx project add --url <url> --initiative <name> --size <S>`.
+        Keep the running state in **comments** (end each session with a Snapshot comment, posted via
+        `dx project snapshot` for a consistent format).
   - type: textarea
     id: why
     attributes:
