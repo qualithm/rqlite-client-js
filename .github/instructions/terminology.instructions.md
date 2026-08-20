@@ -47,3 +47,14 @@ does a person read it as a name? If a person reads it, title-case it.
 
 Use the full extension, not the shorthand: `.yaml` (not `.yml`) — including GitHub composite actions
 (`action.yaml`), even though GitHub scaffolds `action.yml`.
+
+## Environment variable names
+
+Spell the vendor prefix out: `GITHUB_`, `CLOUDFLARE_`, `DIGITALOCEAN_` — never the short form
+(`GH_`, `CF_`, `DO_`). Spelled-out names are unambiguous and greppable; abbreviations collide across
+vendors and read as noise to anyone who doesn't already know the shorthand.
+
+Exception: keep the abbreviated name when an external tool reads it verbatim and renaming would
+break the integration — `GH_TOKEN`/`GH_PAGER` (gh CLI), `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`
+(S3 SDK against Spaces), `secrets.GITHUB_TOKEN` (GitHub-injected). The test is the same as the
+identifier carve-out: if renaming breaks a real reference, keep it.
