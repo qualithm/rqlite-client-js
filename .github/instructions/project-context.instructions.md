@@ -75,10 +75,12 @@ Commands below are described by policy only — run `dx <cmd> --help` for flags.
   and `main` hops (a PR into `development` comes from an arbitrary feature branch, so that check
   doesn't apply there). Single-`main` repos (`ui`, `dx`, the `*-example` templates) have no chain,
   but still route issue-resolving work through a feature-branch PR into `main`, never a direct push.
-- **CI tiers** — a PR into `development` runs the cheap tier (lint, format, typecheck, unit tests);
-  the `test` and `main` hops add the expensive jobs (coverage gates, cross-runtime matrices, doc
+- **CI tiers** — a PR into `development` runs the cheap tier (lint, format, typecheck, unit tests)
+  plus coverage; the `test` and `main` hops add the expensive jobs (cross-runtime matrices, doc
   builds, packaging). Templates key this off the `is-main` output of the `changes` job, so a
-  development-targeted PR never runs an artifact-producing or packaging job.
+  development-targeted PR never runs an artifact-producing or packaging job. Coverage is
+  deliberately outside that gate — it runs on every CI run so codecov sees `development`, `test` and
+  `main` (Decision qualithm/discussions#418).
 - **Feature branches** — cut from `development` (or `main` for single-branch repos), `kebab-case`,
   PR'd back into `development` (never `test`/`main` directly) with `dx git feature`. Delete the
   branch (local and remote) as soon as its PR merges — check the PR's merge state
