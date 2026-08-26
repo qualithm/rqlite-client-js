@@ -41,6 +41,9 @@ TITLE=""
 SUMMARY=""
 CLOSES_ON=""
 JSON=false
+PROMOTION=false
+FROM_BRANCH=""
+DELIVERED_ONLY=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -89,6 +92,21 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --closes-on=*) CLOSES_ON="${1#--closes-on=}"; shift ;;
+    --promotion)
+      # Promotion-hop mode: title/body for a `from -> to` branch promotion
+      # (scripts/git-merge), not a feature branch. Title is the Promote form,
+      # harvest is --delivered-only, and a lone commit that is itself a prior
+      # promotion is never reused as the title.
+      PROMOTION=true; shift ;;
+    --from)
+      if [[ $# -lt 2 ]]; then
+        echo "git-pr-synthesize: --from requires an argument" >&2
+        exit 2
+      fi
+      FROM_BRANCH="$2"
+      shift 2
+      ;;
+    --from=*) FROM_BRANCH="${1#--from=}"; shift ;;
     --json) JSON=true; shift ;;
     -h|--help)
       awk '/^#!/{next} /^#/{sub(/^# ?/, ""); print; next} {exit}' "$0"
@@ -150,11 +168,26 @@ harvest_refs() {
   repo=$(cd "$REPO_DIR" && gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null)
 
   local -a args=(--repo-dir "$REPO_DIR" --range "$range")
+  # --delivered-only (dx#144): harvest only from commits whose patch this hop
+  # actually delivers — promotion hops pass it so a reference on an interleaved
+  # commit that didn't land here isn't misattributed to this hop.
+  [[ "$DELIVERED_ONLY" == true ]] && args+=(--delivered-only)
   [[ -n "$repo" ]] && args+=(--repo "$repo")
   "$SCRIPT_DIR/git-refs-harvest" "${args[@]}" || true
 }
 
-range="origin/$BASE_BRANCH..HEAD"
+# Promotion mode promotes origin/<from> -> origin/<base>; feature mode promotes
+# HEAD -> origin/<base>. The range follows the mode.
+if [[ "$PROMOTION" == true ]]; then
+  if [[ -z "$FROM_BRANCH" ]]; then
+    echo "git-pr-synthesize: --promotion requires --from BRANCH" >&2
+    exit 2
+  fi
+  DELIVERED_ONLY=true
+  range="origin/$BASE_BRANCH..origin/$FROM_BRANCH"
+else
+  range="origin/$BASE_BRANCH..HEAD"
+fi
 count=$(git -C "$REPO_DIR" rev-list --count "$range" 2>/dev/null)
 [[ -z "$count" ]] && count=0
 
@@ -163,20 +196,45 @@ if [[ "$count" -eq 0 ]]; then
   exit 1
 fi
 
-if [[ "$count" -eq 1 ]]; then
-  subject=$(git -C "$REPO_DIR" log --format='%s' -1 "$range")
-  [[ -z "$TITLE" ]] && TITLE="$subject"
-elif [[ -z "$TITLE" ]]; then
-  echo "git-pr-synthesize: $count commits ahead of $BASE_BRANCH and no --title — the title" >&2
-  echo "  can't be inferred mechanically; pass --title or keep the PR's existing one." >&2
-  exit 3
+if [[ "$PROMOTION" == true ]]; then
+  # Promotion title: a lone commit is only "meaningful" to reuse as-is if it
+  # isn't itself a squashed promotion/merge commit from a prior hop — squash-
+  # merging collapses an entire hop into one commit whose subject is the
+  # previous hop's PR title, so blindly reusing it would perpetuate a stale
+  # "Promote X → Y" title (with accumulating "(#N)" suffixes) forever instead of
+  # describing this hop.
+  is_promotion=false
+  subject=""
+  if [[ "$count" -eq 1 ]]; then
+    subject=$(git -C "$REPO_DIR" log --format='%s' -1 "$range")
+    if echo "$subject" | grep -qE '^Promote .* → .* \([0-9]+ commits?\)|^Merge .* into (main|test|development)'; then
+      is_promotion=true
+    fi
+  fi
+  if [[ -z "$TITLE" ]]; then
+    if [[ "$count" -eq 1 && "$is_promotion" == false ]]; then
+      TITLE="$subject"
+    else
+      TITLE="Promote $FROM_BRANCH → $BASE_BRANCH ($count commits)"
+    fi
+  fi
+  body=$(printf 'Promotes `%s` → `%s` (%s commit%s).\n\n%s\n' \
+    "$FROM_BRANCH" "$BASE_BRANCH" "$count" "$([[ $count -eq 1 ]] || echo s)" \
+    "$(git -C "$REPO_DIR" log --reverse --format='- %s' "$range")")
+else
+  if [[ "$count" -eq 1 ]]; then
+    subject=$(git -C "$REPO_DIR" log --format='%s' -1 "$range")
+    [[ -z "$TITLE" ]] && TITLE="$subject"
+  elif [[ -z "$TITLE" ]]; then
+    echo "git-pr-synthesize: $count commits ahead of $BASE_BRANCH and no --title — the title" >&2
+    echo "  can't be inferred mechanically; pass --title or keep the PR's existing one." >&2
+    exit 3
+  fi
+  [[ -z "$SUMMARY" ]] && SUMMARY="$TITLE"
+  body=$(printf '%s (%s commit%s).\n\n%s\n' \
+    "$SUMMARY" "$count" "$([[ $count -eq 1 ]] || echo s)" \
+    "$(git -C "$REPO_DIR" log --reverse --format='- %s' "$range")")
 fi
-
-[[ -z "$SUMMARY" ]] && SUMMARY="$TITLE"
-
-body=$(printf '%s (%s commit%s).\n\n%s\n' \
-  "$SUMMARY" "$count" "$([[ $count -eq 1 ]] || echo s)" \
-  "$(git -C "$REPO_DIR" log --reverse --format='- %s' "$range")")
 
 # harvest_refs emits `<kind>\t<ref>` per unique reference; <kind> is `close`
 # only when the trailer used a closing keyword (close/fix/resolve). On the
@@ -184,6 +242,7 @@ body=$(printf '%s (%s commit%s).\n\n%s\n' \
 # `Refs #N` stays `Refs #N` (never auto-upgraded), so partial-progress work
 # isn't closed prematurely. (See dx#98.)
 refs=$(harvest_refs "$range")
+REFS_ONELINE=""
 if [[ -n "$refs" ]]; then
   base_is_closing=false
   [[ "$BASE_BRANCH" == "$(closing_branch)" ]] && base_is_closing=true
@@ -193,17 +252,19 @@ if [[ -n "$refs" ]]; then
     keyword="Refs"
     [[ "$base_is_closing" == true && "$kind" == "close" ]] && keyword="Closes"
     block+="$keyword $ref"$'\n'
+    REFS_ONELINE+="${REFS_ONELINE:+ }$keyword $ref"
   done <<< "$refs"
   body="$body"$'\n\n'"$block"
 fi
 
 if $JSON; then
-  TITLE="$TITLE" COUNT="$count" BODY="$body" python3 -c '
+  TITLE="$TITLE" COUNT="$count" BODY="$body" REFS_ONELINE="$REFS_ONELINE" python3 -c '
 import json, os
 print(json.dumps({
     "title": os.environ["TITLE"],
     "commits": int(os.environ["COUNT"]),
     "body": os.environ["BODY"],
+    "refs_oneline": os.environ["REFS_ONELINE"],
 }))'
 else
   printf '%s\n---\n%s' "$TITLE" "$body"
