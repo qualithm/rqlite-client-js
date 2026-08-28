@@ -12,8 +12,8 @@ so a local pass means CI passes.
 
 Conventional Commits, header only unless asked for a body: `type(scope)!: subject` — imperative,
 lowercase, no trailing period. Never add `Co-authored-by` or agent-attribution trailers. When the
-commit advances a board issue, add a `Refs: #N` trailer; use `Closes:`/`Fixes:` only when the commit
-genuinely completes the issue. Full rules: `.github/instructions/commit.instructions.md`.
+commit advances a board issue, add a `Refs: qualithm/pm#N` trailer; use `Closes:`/`Fixes:` only when
+the commit genuinely completes the issue. Full rules: `.github/instructions/commit.instructions.md`.
 
 ## Pull requests
 

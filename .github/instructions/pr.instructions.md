@@ -43,8 +43,8 @@ the body.
 - <commit 2 subject>
 ...
 
-Closes #123
-Refs #456
+Closes qualithm/pm#123
+Refs qualithm/pm#456
 ```
 
 - **First line:** one sentence describing what's being merged and how many commits it carries.

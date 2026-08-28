@@ -36,20 +36,27 @@ jobs:
         id: scan
         continue-on-error: true
         run: bun audit
+      - name: Create app token for pm issue filing
+        id: app-token
+        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
+        with:
+          app-id: ${{ secrets.PROJECTS_GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PROJECTS_GH_APP_PRIVATE_KEY }}
+          owner: qualithm
       - name: Report failure
         if: steps.scan.outcome == 'failure'
         uses: ./.github/actions/report-scan-failure
         with:
           mode: report
           title: "${{ github.event.repository.name }}: bun audit found a vulnerability"
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ steps.app-token.outputs.token }}
       - name: Resolve stale failure issue
         if: steps.scan.outcome == 'success'
         uses: ./.github/actions/report-scan-failure
         with:
           mode: resolve
           title: "${{ github.event.repository.name }}: bun audit found a vulnerability"
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ steps.app-token.outputs.token }}
       - name: Fail job if the scan failed
         if: steps.scan.outcome == 'failure'
         run: exit 1
