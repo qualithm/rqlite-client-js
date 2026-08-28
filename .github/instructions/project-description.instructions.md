@@ -51,7 +51,7 @@ Rules:
   phrasing, kept consistent _in meaning_ with Part 1 but may be package-scoped and carry its own
   elaboration.
 - Per-crate `Cargo.toml` `description` fields describe the **crate**, not the project, and are
-  written independently (see `varv-rs/crates/*`). `wrangler.jsonc` has only `name`, no description.
+  written independently. `wrangler.jsonc` has only `name`, no description.
 - GitHub "About" text should match Part 1; keep it in sync with `dx describe` (check/drift/sync),
   never by hand.
 

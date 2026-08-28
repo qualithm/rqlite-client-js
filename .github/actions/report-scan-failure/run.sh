@@ -3,7 +3,12 @@
 # Implementation for the report-scan-failure composite action. See action.yaml for inputs.
 set -euo pipefail
 
-: "${REPO:?}" "${MODE:?}" "${TITLE:?}"
+: "${MODE:?}" "${TITLE:?}"
+
+# Issues file on the org's private tracker (Decision pm#2); SOURCE_REPO records where
+# the failing scan ran. Titles carry the repo name, so dedup is unaffected by the move.
+REPO="qualithm/pm"
+SOURCE_REPO="${SOURCE_REPO:?}"
 
 # Labels to apply and dedup under; accept space- or comma-separated input.
 LABELS="${LABELS:-security-audit}"
@@ -24,12 +29,12 @@ report)
     case "$l" in
     security-audit)
       gh label create security-audit --repo "$REPO" --color "b60205" --force \
-        --description "Automated scan failure filed by report-scan-failure; kept off the Engineering board (Decision #66)" \
+        --description "Automated scan failure filed by report-scan-failure; kept off the Engineering board (Decision pm#2)" \
         >/dev/null
       ;;
     off-board)
       gh label create off-board --repo "$REPO" --color "5319e7" --force \
-        --description "Automation-filed issue kept off the Engineering board (Decision #66)" \
+        --description "Automation-filed issue kept off the Engineering board (Decision pm#2)" \
         >/dev/null
       ;;
     *)
@@ -72,9 +77,10 @@ addressing the finding.
 ### Acceptance
 - [ ] Root cause identified
 - [ ] Fix applied
-- [ ] The workflow passes again on this repo
+- [ ] The workflow passes again on ${SOURCE_REPO}
 
 ### Links
+- Source repo: https://github.com/${SOURCE_REPO}
 - Failing run: ${RUN_URL}"
     fi
     url="$(gh issue create --repo "$REPO" --title "$TITLE" --body "$body" "${label_args[@]}")"

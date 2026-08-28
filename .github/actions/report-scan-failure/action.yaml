@@ -16,7 +16,7 @@ inputs:
     description: "Stable anchor used as both the issue title and the dedup key."
     required: true
   github-token:
-    description: "Token with this repo's issues:write (e.g. secrets.GITHUB_TOKEN)."
+    description: "Token with qualithm/pm issues:write (a PROJECTS_GH_APP token)."
     required: true
   label:
     description: >
@@ -35,13 +35,17 @@ inputs:
     description: "URL of the workflow run to link from the issue (mode: report)."
     required: false
     default: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+# Issues are filed on the qualithm/pm tracker (Decision pm#2), not the calling repo — titles
+# already carry the repo name, so dedup is unaffected. The token must write to pm's issues: use a
+# PROJECTS_GH_APP token (org apps can write private repos from public-repo workflows; a public
+# repo's GITHUB_TOKEN cannot).
 runs:
   using: "composite"
   steps:
     - shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
-        REPO: ${{ github.repository }}
+        SOURCE_REPO: ${{ github.repository }}
         MODE: ${{ inputs.mode }}
         TITLE: ${{ inputs.title }}
         LABELS: ${{ inputs.label }}
