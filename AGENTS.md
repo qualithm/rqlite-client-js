@@ -11,14 +11,13 @@ so a local pass means CI passes.
 ## Commits
 
 Conventional Commits, header only unless asked for a body: `type(scope)!: subject` — imperative,
-lowercase, no trailing period. Never add `Co-authored-by` or agent-attribution trailers. When the
-commit advances a board issue, add a `Refs: qualithm/pm#N` trailer; use `Closes:`/`Fixes:` only when
-the commit genuinely completes the issue. Full rules: `.github/instructions/commit.instructions.md`.
+lowercase, no trailing period. Never add `Co-authored-by` or agent-attribution trailers. Full rules:
+`.github/instructions/commit.instructions.md`.
 
 ## Pull requests
 
-Title = the Conventional Commit header of the change. One issue-resolving PR per branch, into the
-repo's default branch — never a direct push. Full rules: `.github/instructions/pr.instructions.md`.
+Title = the Conventional Commit header of the change. One PR per branch, into the repo's default
+branch — never a direct push. Full rules: `.github/instructions/pr.instructions.md`.
 
 ## Branches
 
@@ -28,7 +27,5 @@ kebab-case, PR back to the same branch. Delete the branch once its PR merges. Th
 
 ## Everything else
 
-- Project state, the board, and how to claim work:
-  `.github/instructions/project-context.instructions.md`
 - Code conventions for this stack: `.github/copilot-instructions.md`
 - Review and security guidance: `.github/review.md`, `.github/security.md`
