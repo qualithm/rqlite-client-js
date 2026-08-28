@@ -28,4 +28,4 @@ kebab-case, PR back to the same branch. Delete the branch once its PR merges. Th
 ## Everything else
 
 - Code conventions for this stack: `.github/copilot-instructions.md`
-- Review and security guidance: `.github/review.md`, `.github/security.md`
+- Review and security guidance: `.github/review.md`, `.github/security-review.md`
