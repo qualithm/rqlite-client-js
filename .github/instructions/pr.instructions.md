@@ -4,62 +4,18 @@ description: "Rules for writing pull request titles and descriptions"
 
 # Pull Request Guidelines
 
-The title and body follow the exact same rules `dx git merge` uses to synthesize its automated
-promotion PRs (see `synthesize_pr` in [scripts/git-merge](../../scripts/git-merge)) — so a PR looks
-the same whether a human opens it or the promotion script does.
-
-**Opening a feature-branch PR (not a promotion hop)?** Use `dx git feature` (scripts/git-feature)
-instead of hand-writing the title/body — it pushes the current branch and creates or refreshes its
-PR into `--base` (default `development`) applying these exact rules, including the harvested
-`Closes`/`Refs` footer. It refuses to guess a title once a branch carries more than one commit (pass
-`--title`) since summarizing intent across commits needs judgement a script doesn't have; run with
-`--dry-run` to preview the title/body before pushing anything. It also aborts, before any push, on a
-title that isn't a Conventional Commit header — for a single-commit branch that title is the
-commit's own subject, so fix it with `git commit --amend`, not `--title`.
-
-Once the PR is open, the repo's `refresh-pr.yaml` workflow regenerates the body from the live commit
-range on every push, so pushing more commits never leaves the PR page stale and the body CI shows a
-reviewer is always current (dx#317). The title is only refreshed while the branch carries a single
-commit. A hand-edited body is overwritten on the next push — review notes belong in comments, not
-the body.
-
 ## Title
 
 - If the PR carries exactly **one commit**, reuse that commit's header verbatim as the PR title (it
   already follows the Conventional Commit format from `commit.instructions.md`).
-- Otherwise: for a branch-promotion PR use `Promote <from> → <to> (<N> commits)`; for any other
-  multi-commit PR, write a `type(scope): subject` header in the Conventional Commit format from
+- Otherwise, write a `type(scope): subject` header in the Conventional Commit format from
   `commit.instructions.md` — a concise imperative summary of the change (lowercase, no trailing
   period). Feature PRs squash-merge, so this title becomes the squash commit's subject and must read
-  as a valid commit. (The `Promote …` form above is the one deliberate exception — it's a generated,
-  self-documenting marker, not a change subject.)
+  as a valid commit.
 
 ## Body
 
-```
-<one-line summary of what the PR does> (<N> commit<s>).
-
-- <commit 1 subject>
-- <commit 2 subject>
-...
-
-Closes #123
-Refs #456
-```
-
-- **First line:** one sentence describing what's being merged and how many commits it carries.
-- **Blank line, then one bullet per commit** in the range being merged (oldest first) — its subject
-  line, verbatim.
-- **Blank line, then harvested issue references** — one per line:
-  - Scan every commit subject/body in the range for `Close[sd]?`, `Fix(e[sd])?`, `Resolve[sd]?`, or
-    `Refs?` (case-insensitive, with or without a trailing colon) followed by `#123` or
-    `owner/repo#123`. De-duplicate, first-seen order.
-  - **The trailer keyword is preserved, never upgraded.** A reference becomes `Closes #N` only when
-    it was written with a closing keyword (`Closes`/`Fixes`/`Resolves`) somewhere in the range AND
-    the PR's base is the repo's default branch (so the issue auto-closes on merge). A deliberate
-    `Refs #N` stays `Refs #N` on every base branch — including the default — so partial-progress
-    work referenced with `Refs` is never auto-closed. Use `Refs` (not a closing keyword) whenever a
-    commit only advances an issue without completing it.
-  - Every reference emits as `Refs #N` on a base branch that is not the repo's default branch, so
-    the reference is visible without prematurely closing anything.
-- Omit the references block entirely if no issues were referenced in the range. </content>
+- Lead with one sentence describing what the PR does.
+- Reference any issue the PR resolves with a closing keyword (`Closes #123`) on its own line; use
+  `Refs #123` for partial progress you don't want auto-closed.
+- Review notes belong in comments, not the body.
