@@ -6,9 +6,7 @@ description: "Guidelines for writing commit messages"
 # Commit Guidelines
 
 These rules apply to every commit however it is written — `git commit -m` in a terminal included,
-not just an editor session on `COMMIT_EDITMSG`. `dx git feature` enforces the header format on the
-PR title, which for a single-commit branch **is** that commit's subject, so a non-conforming header
-blocks the PR.
+not just an editor session on `COMMIT_EDITMSG`.
 
 **Default: Generate a single-line commit message (header only). Include body/footer only when
 explicitly requested.**
@@ -57,19 +55,8 @@ Improves UX for returning users.
 
 - Use for metadata, breaking changes, or issue references.
   - `BREAKING CHANGE:` short description of the change
-  - `Closes/Fixes/Refs:` issue references (e.g. `Closes qualithm/pm#123`)
+  - `Closes/Fixes/Refs:` issue references (e.g. `Closes #123`)
 - Do **not** add `Co-authored-by` trailers or any other Copilot/agent authorship attribution.
-
-**Board issues:** board issues live on the pm tracker repo (Decision pm#2), so a trailer always uses
-the cross-repo form — `Refs: qualithm/pm#N`, one issue per line for several. The `git-merge`
-promotion script harvests these from the promoted commit range and self-documents the promotion PRs.
-The harvester **preserves the keyword — it never upgrades a `Refs` to a `Closes`.** A reference is
-emitted as `Closes #N` only when the commit wrote a closing keyword (`Closes`/`Fixes`/`Resolves`),
-and only on the hop into the default branch (so the issue auto-closes on release); a deliberate
-`Refs #N` stays `Refs #N` on every hop, including the final one. Intermediate hops always emit
-`Refs #N`. So: use `Closes:`/`Fixes:`/`Resolves:` only when that commit genuinely completes the
-issue; use `Refs:` for partial progress you don't want auto-closed, and it will never be promoted to
-a close.
 
 **Example**
 
@@ -77,7 +64,7 @@ a close.
 fix(auth)!: reject tokens signed with the old key
 
 BREAKING CHANGE: tokens issued before the key rotation are no longer accepted.
-Closes qualithm/pm#456
+Closes #456
 ```
 
 ---
