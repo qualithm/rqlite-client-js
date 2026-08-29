@@ -8,6 +8,6 @@
   ],
   "github.copilot.chat.reviewSelection.instructions": [
     { "file": ".github/review.md" },
-    { "file": ".github/security.md" }
+    { "file": ".github/security-review.md" }
   ]
 }
