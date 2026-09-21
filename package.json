@@ -99,7 +99,7 @@
     "@humanfs/node": "0.17.0",
     "// @humanfs/node": "security: <0.16.8; pinned to 0.17.0 (GHSA-p498-v437-472g)",
     "browserslist": "4.29.0",
-    "// browserslist": "security: browserslist \u22644.28.6; pinned to patched 4.29.0",
+    "// browserslist": "security: browserslist ≤4.28.6; pinned to patched 4.29.0",
     "baseline-browser-mapping": "2.11.25",
     "// baseline-browser-mapping": "security: >=2.0.0 <2.11.0; pinned to 2.11.25 (GHSA-w5vr-8v7q-w6rv)"
   }
