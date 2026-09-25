@@ -9,7 +9,7 @@
 # and the pr-refresh workflow vendored into every enrolled repo (which
 # regenerates an open PR's body on every push) — so a CI-refreshed body is
 # byte-identical to what `dx git feature` would produce. (dx#317, Decision
-# qualithm/discussions#318.)
+# qualithm/pm#767.)
 #
 # Title: a lone commit reuses its subject verbatim; more than one commit
 # requires --title (summarizing intent needs judgement this script doesn't

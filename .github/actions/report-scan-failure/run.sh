@@ -23,7 +23,7 @@ report)
   # attach it. `security-audit` and `off-board` are the off-the-Engineering-board
   # markers (issue-templates/add-to-project.yaml excludes both) and keep their
   # canonical styling; see Decision #66:
-  # https://github.com/orgs/qualithm/discussions/66. Any other label is created
+  # https://github.com/qualithm/pm/discussions/705. Any other label is created
   # if missing with a neutral colour. --force makes the marker creates idempotent.
   for l in $LABELS; do
     case "$l" in
