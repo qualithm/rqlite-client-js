@@ -5,7 +5,7 @@ name: Refresh PR
 
 # Regenerates an open feature PR's title/body from the live commit range on
 # every push, so the reviewer-facing page never goes stale between `dx git
-# feature` runs (dx#317, Decision qualithm/discussions#318). The synthesis is
+# feature` runs (dx#317, Decision qualithm/pm#767). The synthesis is
 # the vendored .github/actions/refresh-pr/git-pr-synthesize — the same code
 # `dx git feature` runs locally — so both paths produce identical output.
 on:

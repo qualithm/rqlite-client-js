@@ -19,6 +19,6 @@ jobs:
           github-token: ${{ steps.app.outputs.token }}
           # Automation-filed issues (report-scan-failure) stay off the board by default:
           # security-audit marks scan failures, off-board marks other automation (e.g.
-          # IRM alerts) — see Decision #66: https://github.com/orgs/qualithm/discussions/66.
+          # IRM alerts) — see Decision #66: https://github.com/qualithm/pm/discussions/705.
           labeled: security-audit,off-board
           label-operator: NOT
