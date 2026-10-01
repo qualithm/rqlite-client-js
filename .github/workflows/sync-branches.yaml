@@ -21,7 +21,7 @@ jobs:
   guard:
     name: Source Branch
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
     steps:
@@ -40,7 +40,7 @@ jobs:
           fi
   sync:
     name: Sync downstream branches
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     if: github.actor != 'github-actions[bot]'
     steps:
       - name: Generate GitHub App token
