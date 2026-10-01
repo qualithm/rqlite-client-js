@@ -44,7 +44,7 @@ report)
   done
 
   label_args=()
-  for l in $LABELS; do label_args+=(--label "$l"); done
+  for l in $LABELS; do label_args+=(-f "labels[]=$l"); done
 
   if [[ -n "$existing" ]]; then
     if [[ -n "${BODY:-}" ]]; then
@@ -83,7 +83,11 @@ addressing the finding.
 - Source repo: https://github.com/${SOURCE_REPO}
 - Failing run: ${RUN_URL}"
     fi
-    url="$(gh issue create --repo "$REPO" --title "$TITLE" --body "$body" "${label_args[@]}")"
+    # REST rather than `gh issue create`: newer gh resolves repository.defaultBranchRef over
+    # GraphQL first, which needs contents:read — a permission the issue-filing app token
+    # doesn't hold — so every new issue failed with "Resource not accessible by integration".
+    # POST /repos/{owner}/{repo}/issues needs issues:write alone.
+    url="$(gh api "repos/${REPO}/issues" -f "title=$TITLE" -f "body=$body" "${label_args[@]}" --jq .html_url)"
     echo "report-scan-failure: filed ${url}"
   fi
   ;;
