@@ -108,12 +108,26 @@ jobs:
         if: steps.version.outputs.skip != 'true'
         env:
           TAG: ${{ steps.version.outputs.tag }}
+          KIND: ${{ steps.version.outputs.kind }}
         run: |
           set -euo pipefail
 
           if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
             echo "::notice::tag ${TAG} already exists — nothing to release"
             exit 0
+          fi
+
+          # A Go module must not be tagged while it builds against an untagged
+          # commit of one of our own modules (a pseudo-version) or a local
+          # replace: its consumers would inherit an unreleased dependency.
+          # Release the dependency, require its tag, then bump VERSION again.
+          if [[ "$KIND" == "go" && -f go.mod ]]; then
+            bad=$(grep -nE '^[[:space:]]*(require[[:space:]]+)?github\.com/qualithm/[^[:space:]]+[[:space:]]+v[^[:space:]]*[0-9]{14}-[0-9a-f]{12}([[:space:]]|$)|^[[:space:]]*(replace[[:space:]]+)?github\.com/qualithm/.*=>[[:space:]]*\.' go.mod || true)
+            if [[ -n "$bad" ]]; then
+              echo "::error file=go.mod::refusing to tag ${TAG}: go.mod pins a qualithm module to an untagged commit or local path:"
+              echo "$bad"
+              exit 1
+            fi
           fi
 
           git config user.name "github-actions[bot]"
