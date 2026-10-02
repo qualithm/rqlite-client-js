@@ -1,5 +1,4 @@
 ---
-applyTo: "**"
 description: "Exact pre-commit commands for the bun-lib CI archetype, kept in sync with ci.yaml"
 ---
 

@@ -1,5 +1,4 @@
 ---
-applyTo: "**"
 description: "Guidelines for writing commit messages"
 ---
 
@@ -56,7 +55,7 @@ Improves UX for returning users.
 - Use for metadata, breaking changes, or issue references.
   - `BREAKING CHANGE:` short description of the change
   - `Closes/Fixes/Refs:` issue references (e.g. `Closes #123`)
-- Do **not** add `Co-authored-by` trailers or any other Copilot/agent authorship attribution.
+- Do **not** add `Co-authored-by` trailers or any other agent authorship attribution.
 
 **Example**
 

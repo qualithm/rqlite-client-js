@@ -1,3 +1,10 @@
+---
+name: security-guidance
+description:
+  "Security baseline for this repository: OWASP basics as they apply here. Use for any
+  security-sensitive change or security review."
+---
+
 # Security guidance
 
 Baseline for any security-sensitive change or review in this repository.

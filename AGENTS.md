@@ -1,23 +1,23 @@
 # AGENTS.md
 
-Guidance for any agent working in this repository. The `.github/instructions/` files are the full
-contract — this file is the portable summary for agents that don't read VS Code instruction files.
+Guidance for any agent working in this repository. The `.claude/rules/` files are the full contract
+— Claude Code loads them automatically; this file is the portable summary for agents that don't.
 
 ## Before committing
 
-Run the pre-commit checks in `.github/instructions/checks.instructions.md` — they match CI exactly,
-so a local pass means CI passes.
+Run the pre-commit checks in `.claude/rules/checks.md` — they match CI exactly, so a local pass
+means CI passes.
 
 ## Commits
 
 Conventional Commits, header only unless asked for a body: `type(scope)!: subject` — imperative,
 lowercase, no trailing period. Never add `Co-authored-by` or agent-attribution trailers. Full rules:
-`.github/instructions/commit.instructions.md`.
+`.claude/rules/commit.md`.
 
 ## Pull requests
 
 Title = the Conventional Commit header of the change. One PR per branch, into the repo's default
-branch — never a direct push. Full rules: `.github/instructions/pr.instructions.md`.
+branch — never a direct push. Full rules: `.claude/rules/pr.md`.
 
 ## Branches
 
@@ -27,5 +27,6 @@ kebab-case, PR back to the same branch. Delete the branch once its PR merges. Th
 
 ## Everything else
 
-- Code conventions for this stack: `.github/copilot-instructions.md`
-- Review and security guidance: `.github/review.md`, `.github/security-review.md`
+- Code conventions for this stack: `.claude/rules/code.md`
+- Review and security guidance: the `review-guidance` and `security-guidance` skills in
+  `.claude/skills/`
