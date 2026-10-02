@@ -20,7 +20,11 @@ permissions:
 jobs:
   publish-npm:
     name: Publish to npm
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    # Must stay on a GitHub-hosted runner. Trusted publishing (OIDC, no npm
+    # token) always signs provenance, and npm rejects provenance from
+    # self-hosted runners such as Blacksmith with E422 "Unsupported GitHub
+    # Actions runner environment".
+    runs-on: ubuntu-24.04
     environment:
       name: npm
     permissions:
