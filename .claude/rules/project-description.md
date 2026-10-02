@@ -1,6 +1,10 @@
 ---
 description: "How to write this repo's canonical one-liner description"
-applyTo: "**/package.json, **/Cargo.toml, **/README.md, **/doc.go"
+paths:
+  - "**/package.json"
+  - "**/Cargo.toml"
+  - "**/README.md"
+  - "**/doc.go"
 ---
 
 # Project Description Guidelines

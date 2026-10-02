@@ -1,7 +1,6 @@
 ---
 description:
   "Fixed spelling/capitalization and writing-style conventions that recur across every repo"
-applyTo: "**"
 ---
 
 # Terminology
