@@ -7,7 +7,7 @@ Runnable examples demonstrating rqlite client usage.
 Start a local rqlite node (default: `localhost:4001`):
 
 ```bash
-docker run -p 4001:4001 rqlite/rqlite
+docker run -p 4001:4001 rqlite/rqlite:10.5.0@sha256:7edf5fb02a42c63c648c2fc121894e1b74320db5f0fe6032d6a4f052ee0b666f
 ```
 
 ## Running Examples
