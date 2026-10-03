@@ -61,18 +61,17 @@ if (result.ok) {
 | -------------- | -------------- | ------ |
 | 10.x           | 0.x            | Tested |
 
-The integration test suite runs against rqlite via Docker. Override the version with the
-`RQLITE_VERSION` environment variable:
+The integration test suite runs against the rqlite image pinned in `docker-compose.test.yaml`:
 
 ```bash
-RQLITE_VERSION=10.2.7 docker compose -f docker-compose.test.yaml up -d
+docker compose -f docker-compose.test.yaml up -d
 ```
 
 Use `serverVersion()` at runtime to check the connected server:
 
 ```ts
 const ver = await client.serverVersion()
-if (ver.ok) console.log(ver.value) // "v10.2.7"
+if (ver.ok) console.log(ver.value) // "v10.5.0"
 ```
 
 ## Usage
