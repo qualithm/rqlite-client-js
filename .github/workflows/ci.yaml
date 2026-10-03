@@ -193,11 +193,39 @@ jobs:
           path: coverage/
           retention-days: 14
 
+  image-pins:
+    name: Image Pins
+    # Every image reference in the repo must match the vendored dx registry
+    # (Decision qualithm/pm#744, amendment 2026-10-03). Runs on every PR, docs
+    # included: a README can carry an image reference too. Repos not enrolled
+    # in dx images-sync.config carry no vendored registry and skip.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check image pins against the vendored dx registry
+        run: |
+          if [ ! -f .github/images/images.config ]; then
+            echo "not enrolled in dx images-sync.config; skipping"
+            exit 0
+          fi
+          .github/images/images check --config .github/images/images.config .
+
   ci-required:
     name: CI Required
     if: always()
     needs:
-      [changes, lint, format, typecheck, test-bun, test-node, test-deno, validate-runtime, coverage]
+      [
+        changes,
+        lint,
+        format,
+        typecheck,
+        test-bun,
+        test-node,
+        test-deno,
+        validate-runtime,
+        coverage,
+        image-pins
+      ]
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Verify dependent jobs
