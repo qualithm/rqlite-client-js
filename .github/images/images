@@ -12,6 +12,7 @@ Usage:
   images check [--config FILE] [--json] [repo-or-path ...]
   images sync [--dry-run] [--no-pr] [repo-or-path ...]
   images drift [repo ...]
+  images audit [--config FILE] [--charts DIR] [--out FILE] [--severity S] [--no-scan]
 
 `verify` proves each entry is safe to pin before sync copies it anywhere. Each
 finding carries a stable code:
@@ -32,7 +33,7 @@ finding carries a stable code:
                            on Apple silicon)
   warn   tag-rebuilt       the tag now points at a different digest; upstream
                            rebuilt it. Bumping stays a human call, and the weekly
-                           image audit reports it.
+                           `images audit` reports it.
 
 --offline runs only the checks that need no network. Refs or image names on the
 command line limit the online checks to those entries. Exit 1 on any error that
@@ -98,6 +99,21 @@ copy and prints what would change; --no-pr edits the working tree only.
 
 `drift` exits 1 when an enrolled repo's vendored files are missing or stale, or
 when a repo that references images is not enrolled.
+
+`audit` is the weekly advisory report on the registry itself. For every entry
+it finds the newest tag of the same shape (every number replaced, so
+1.26.8-alpine3.24 is compared only with N.N.N-alpineN.N tags, never with rc or
+build-ID tags) whose every version run is at least the pinned one's, and that
+is a multi-arch index with linux/amd64; a newer tag of a later major; and
+whether upstream rebuilt the pinned tag. Trivy counts fixable vulnerabilities
+(--severity, default HIGH,CRITICAL) in the pinned reference and in the proposed
+one. It also checks the chart dependencies in helm/*/Chart.yaml of a cloud
+checkout (--charts, default $QUALITHM_ROOT/cloud), from HTTP and OCI chart
+repositories. Each image row carries the exact registry line to take: replace
+the entry and run `dx images sync`. The markdown report goes to --out (or
+stdout) and is empty when there is nothing to report; it always exits 0 unless
+the arguments are wrong. Nothing is bumped automatically (Decision
+qualithm/pm#744). --no-scan skips trivy.
 
 A known violation that another board issue removes is waived on its entry, never
 silently: `waive=<code>[,<code>] issue=<owner>/<repo>#<n>`. A waived finding
@@ -1278,7 +1294,8 @@ def sync(argv: list[str]) -> int:
             continue
         git(root, "add", "--", *changed)
         git(root, "commit", "-q", "-m", "chore(images): sync image pins from the dx registry")
-        p = subprocess.run([os.path.join(root_dir, "dx"), "git", "feature", "--repo", root, "--base", base], capture_output=True, text=True)
+        # git-feature's --repo takes a name under the workspace; run it inside the repo instead.
+        p = subprocess.run([os.path.join(root_dir, "dx"), "git", "feature", "--base", base], capture_output=True, text=True, cwd=root)
         print("    " + (p.stdout.strip().splitlines() or [p.stderr.strip()])[-1])
         failed |= p.returncode != 0
     return failed
@@ -1321,6 +1338,284 @@ def drift(argv: list[str]) -> int:
     return 1 if drifted else 0
 
 
+# ------------------------------------------------------------------- audit
+
+VERSION_RUN_RE = re.compile(r"\d+(?:\.\d+)*")
+
+
+def shape(tag: str) -> str:
+    """The tag with every number replaced by N. Only tags of the same shape are
+    compared, so 1.26.8-alpine3.24 is never weighed against 1.26, 1.27.0-rc1 or
+    a numeric build-ID tag such as grafana's 9799770991."""
+    return re.sub(r"\d+", "N", tag)
+
+
+def version_key(tag: str) -> tuple[tuple[int, ...], ...]:
+    return tuple(tuple(int(x) for x in m.group().split(".")) for m in VERSION_RUN_RE.finditer(tag))
+
+
+def newer_tags(tag: str, tags: list[str]) -> list[str]:
+    """Tags of the same shape whose every version run is at least the pinned
+    one's, newest first: a newer Go on an older Alpine is not an upgrade."""
+    want, current = shape(tag), version_key(tag)
+    if not current:
+        return []
+    out = [
+        t
+        for t in tags
+        if t != tag
+        and shape(t) == want
+        and (k := version_key(t)) != current
+        and all(a >= b for a, b in zip(k, current))
+    ]
+    return sorted(out, key=version_key, reverse=True)
+
+
+def split_major(tag: str, candidates: list[str]) -> tuple[list[str], list[str]]:
+    if not candidates:
+        return [], []
+    major = version_key(tag)[0][0]
+    same = [t for t in candidates if version_key(t)[0][0] == major]
+    return same, [t for t in candidates if version_key(t)[0][0] > major]
+
+
+@dataclass
+class AuditRow:
+    entry: Ref
+    newer: str = ""  # newest same-major tag, as a registry line
+    major: str = ""  # newest tag of a later major
+    rebuilt: str = ""  # the tag's current digest, when it moved
+    now: str = ""  # fixable vulnerability count of the pinned reference
+    after: str = ""  # the same for the proposed line
+    error: str = ""
+
+    @property
+    def proposal(self) -> str:
+        if self.newer:
+            return self.newer
+        if self.rebuilt:
+            return f"{self.entry.name}:{self.entry.tag}@{self.rebuilt}"
+        return ""
+
+
+def index_digest(client: Client, r: Ref, tag: str) -> str | None:
+    """The tag's digest when it is a multi-arch index with linux/amd64."""
+    status, doc = client.manifest(r.host, r.path, tag)
+    if status != 200 or doc.get("mediaType") not in INDEX_TYPES:
+        return None
+    if not any((m.get("platform") or {}).get("architecture") == "amd64" for m in doc.get("manifests", [])):
+        return None
+    return client.head_digest(r.host, r.path, tag)
+
+
+def audit_entry(client: Client, r: Ref) -> AuditRow:
+    row = AuditRow(r)
+    current = client.head_digest(r.host, r.path, r.tag)
+    if current and current != r.digest:
+        row.rebuilt = current
+    same, later = split_major(r.tag, newer_tags(r.tag, client.tags(r.host, r.path)))
+    # The newest candidate that verify would accept; a few at most are probed.
+    for t in same[:5]:
+        if d := index_digest(client, r, t):
+            row.newer = f"{r.name}:{t}@{d}"
+            break
+    if later:
+        row.major = later[0]
+    return row
+
+
+def trivy_count(ref: str, severity: str, cache: dict[str, str]) -> str:
+    if ref not in cache:
+        p = subprocess.run(
+            ["trivy", "image", "--scanners", "vuln", "--severity", severity, "--ignore-unfixed", "--quiet", "--format", "json", ref],
+            capture_output=True,
+            text=True,
+        )
+        try:
+            results = json.loads(p.stdout).get("Results") or []
+            cache[ref] = str(sum(len(res.get("Vulnerabilities") or []) for res in results))
+        except (json.JSONDecodeError, AttributeError):
+            cache[ref] = "?"
+    return cache[ref]
+
+
+@dataclass
+class ChartRow:
+    chart: str
+    name: str
+    version: str
+    repository: str
+    newer: str = ""
+    major: str = ""
+    error: str = ""
+
+
+def chart_versions(client: Client, url: str, name: str) -> list[str]:
+    if url.startswith("oci://"):
+        r = Ref(url[len("oci://") :].rstrip("/") + "/" + name, "")
+        # OCI tags cannot carry `+`; helm publishes semver build metadata as `_`.
+        return [t.replace("_", "+") for t in client.tags(r.host, r.path)]
+    with urllib.request.urlopen(url.rstrip("/") + "/index.yaml", timeout=60) as resp:
+        text = resp.read().decode()
+    docs = yaml_docs(text, text=True)
+    entries = (docs[0] or {}).get("entries", {}) if docs else {}
+    return [str(e.get("version", "")) for e in entries.get(name) or []]
+
+
+def chart_dependencies(cloud: str) -> list[ChartRow]:
+    rows = []
+    helm = os.path.join(cloud, "helm")
+    for chart in sorted(os.listdir(helm)):
+        path = os.path.join(helm, chart, "Chart.yaml")
+        if not os.path.isfile(path):
+            continue
+        for doc in yaml_docs(path):
+            for dep in (doc or {}).get("dependencies") or []:
+                if dep.get("repository") and dep.get("version"):
+                    rows.append(ChartRow(chart, dep["name"], str(dep["version"]), dep["repository"]))
+    return rows
+
+
+def audit_chart(client: Client, row: ChartRow) -> ChartRow:
+    try:
+        versions = chart_versions(client, row.repository, row.name)
+    except (OSError, RuntimeError, ValueError) as e:
+        row.error = f"{row.repository}: {e}"
+        return row
+    same, later = split_major(row.version, newer_tags(row.version, versions))
+    row.newer = same[0] if same else ""
+    row.major = later[0] if later else ""
+    return row
+
+
+def audit(argv: list[str]) -> int:
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    config = os.path.join(root_dir, "images.config")
+    workspace = os.environ.get("QUALITHM_ROOT") or os.path.dirname(root_dir)
+    cloud = os.path.join(workspace, "cloud")
+    out = ""
+    severity = "HIGH,CRITICAL"
+    scan = True
+    it = iter(argv)
+    for a in it:
+        if a in ("--config", "--charts", "--out", "--severity"):
+            val = next(it, "")
+            a = f"{a}={val}"
+        if a.startswith("--config="):
+            config = a.split("=", 1)[1]
+        elif a.startswith("--charts="):
+            cloud = a.split("=", 1)[1]
+        elif a.startswith("--out="):
+            out = a.split("=", 1)[1]
+        elif a.startswith("--severity="):
+            severity = a.split("=", 1)[1]
+        elif a == "--no-scan":
+            scan = False
+        else:
+            print(f"images: unknown argument: {a}", file=sys.stderr)
+            return 2
+    if not os.path.isfile(config):
+        print(f"images: registry not found: {config}", file=sys.stderr)
+        return 2
+
+    if scan and not shutil.which("trivy"):
+        print("images: trivy not found; pass --no-scan to skip the vulnerability counts", file=sys.stderr)
+        return 2
+
+    refs, findings = parse_config(config)
+    for f in findings:
+        print(f, file=sys.stderr)
+    client = Client()
+
+    def one(r: Ref) -> AuditRow:
+        try:
+            return audit_entry(client, r)
+        except (OSError, RuntimeError, ValueError) as e:
+            return AuditRow(r, error=f"registry unreachable: {e}")
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        rows = list(pool.map(one, refs))
+
+    charts: list[ChartRow] = []
+    charts_note = ""
+    if os.path.isdir(os.path.join(cloud, "helm")):
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            charts = list(pool.map(lambda c: audit_chart(client, c), chart_dependencies(cloud)))
+    else:
+        charts_note = f"Chart dependencies were not checked: no cloud checkout at {cloud}."
+
+    cache: dict[str, str] = {}
+    if scan:
+        for row in rows:
+            if row.error:
+                continue
+            row.now = trivy_count(row.entry.raw, severity, cache)
+            if row.proposal:
+                row.after = trivy_count(row.proposal, severity, cache)
+
+    def vulnerable(row: AuditRow) -> bool:
+        return row.now not in ("", "0")
+
+    image_rows = [r for r in rows if r.error or r.proposal or r.major or vulnerable(r)]
+    chart_rows = [c for c in charts if c.error or c.newer or c.major]
+    lines: list[str] = []
+    if image_rows:
+        lines += [
+            "### Images",
+            "",
+            "| Image | Pinned | Change | Next major | CVEs now | CVEs after | Registry line |",
+            "|---|---|---|---|---|---|---|",
+        ]
+        for r in sorted(image_rows, key=lambda r: r.entry.line):
+            if r.error:
+                change = f"_{r.error}_"
+            elif r.newer:
+                change = "**" + r.newer.split("@")[0].rsplit(":", 1)[1] + "**"
+            elif r.rebuilt:
+                change = "rebuilt"
+            else:
+                change = "_current_"
+            line = f"`{r.proposal}`" if r.proposal else "—"
+            lines.append(
+                f"| `{r.entry.name}` | {r.entry.tag} | {change} | {r.major or '—'} | {r.now or '—'} | {r.after or '—'} | {line} |"
+            )
+        lines.append("")
+    if chart_rows:
+        lines += ["### Chart dependencies", "", "| Chart | Dependency | Pinned | Newer in major | Next major |", "|---|---|---|---|---|"]
+        for c in chart_rows:
+            newer = f"_{c.error}_" if c.error else (f"**{c.newer}**" if c.newer else "_current_")
+            lines.append(f"| {c.chart} | `{c.name}` | {c.version} | {newer} | {c.major or '—'} |")
+        lines.append("")
+    if lines or charts_note:
+        lines += [
+            "### Notes",
+            "",
+            "- To take a change, replace the entry in `dx/images.config` with its registry line, then run `dx images sync`.",
+            "- _rebuilt_: upstream republished the pinned tag; the registry line pins its new digest.",
+            f"- CVE counts are fixable {severity} only (`--ignore-unfixed`); `CVEs after` is the registry line's.",
+            "  Equal or higher means upgrading is not the remedy, and a _current_ row with CVEs has no upgrade yet.",
+            "- Nothing changes automatically; bumps are a human call (Decision qualithm/pm#744).",
+        ]
+        if charts_note:
+            lines.append(f"- {charts_note}")
+    report = "\n".join(lines) + "\n" if lines else ""
+    if out:
+        with open(out, "w") as f:
+            f.write(report)
+    else:
+        sys.stdout.write(report)
+
+    behind = sum(1 for r in rows if r.newer)
+    rebuilt = sum(1 for r in rows if r.rebuilt and not r.newer)
+    majors = sum(1 for r in rows if r.major)
+    print(
+        f"images audit: {len(refs)} entries, {behind} behind, {rebuilt} rebuilt, {majors} with a new major, "
+        f"{sum(1 for r in rows if vulnerable(r))} vulnerable, {sum(1 for r in rows if r.error)} unreachable; "
+        f"{len(charts)} chart dependencies, {sum(1 for c in chart_rows if not c.error)} behind",
+        file=sys.stderr,
+    )
+    return 0
+
 
 def main() -> int:
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help", "help"):
@@ -1337,7 +1632,9 @@ def main() -> int:
         return sync(rest)
     if cmd == "drift":
         return drift(rest)
-    print(f"images: unknown subcommand: {cmd} (use verify|pin|check|sync|drift)", file=sys.stderr)
+    if cmd == "audit":
+        return audit(rest)
+    print(f"images: unknown subcommand: {cmd} (use verify|pin|check|sync|drift|audit)", file=sys.stderr)
     return 2
 
 
