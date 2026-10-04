@@ -7,9 +7,9 @@ description: "Rules for writing pull request titles and descriptions"
 ## Title
 
 - If the PR carries exactly **one commit**, reuse that commit's header verbatim as the PR title (it
-  already follows the Conventional Commit format from `commit.instructions.md`).
+  already follows the Conventional Commit format from `.claude/rules/commit.md`).
 - Otherwise, write a `type(scope): subject` header in the Conventional Commit format from
-  `commit.instructions.md` — a concise imperative summary of the change (lowercase, no trailing
+  `.claude/rules/commit.md` — a concise imperative summary of the change (lowercase, no trailing
   period). Feature PRs squash-merge, so this title becomes the squash commit's subject and must read
   as a valid commit.
 
