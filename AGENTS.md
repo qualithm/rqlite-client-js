@@ -11,13 +11,15 @@ means CI passes.
 ## Commits
 
 Conventional Commits, header only unless asked for a body: `type(scope)!: subject` — imperative,
-lowercase, no trailing period. Never add `Co-authored-by` or agent-attribution trailers. Full rules:
-`.claude/rules/commit.md`.
+lowercase, no trailing period. Never add `Co-authored-by` or agent-attribution trailers. When the
+commit advances a board issue, add a `Refs: qualithm/pm#N` trailer; use `Closes:`/`Fixes:` only when
+the commit genuinely completes the issue. Reference an issue; never restate its contents, private
+repo or service names, or Decision content. Full rules: `.claude/rules/commit.md`.
 
 ## Pull requests
 
-Title = the Conventional Commit header of the change. One PR per branch, into the repo's default
-branch — never a direct push. Full rules: `.claude/rules/pr.md`.
+Title = the Conventional Commit header of the change. One issue-resolving PR per branch, into the
+repo's default branch — never a direct push. Full rules: `.claude/rules/pr.md`.
 
 ## Branches
 
@@ -27,6 +29,8 @@ kebab-case, PR back to the same branch. Delete the branch once its PR merges. Th
 
 ## Everything else
 
+- Project state, the board, and how to claim work: the workspace `CLAUDE.md` one directory up, which
+  `dx chat sync` writes
 - Code conventions for this stack: `.claude/rules/code.md`
 - Review and security guidance: the `review-guidance` and `security-guidance` skills in
   `.claude/skills/`
