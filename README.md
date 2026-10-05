@@ -151,8 +151,7 @@ The resolved credential is cached and reused across requests. When the server an
 client discards it, calls the provider once more, and replays that request a single time — a second
 rejection surfaces as an `AuthenticationError` rather than looping. Concurrent refreshes collapse
 into one provider invocation, and `403` is never retried, since it means the credential is valid but
-unauthorized. `authProvider` takes precedence over `auth` when both are set; static `auth` behaves
-exactly as before.
+unauthorized. `authProvider` takes precedence over `auth` when both are set.
 
 ### Execute (Writes)
 
@@ -312,6 +311,8 @@ const status = await client.status()
 All operations return `Result<T, RqliteError>` — no exceptions are thrown in normal operation.
 
 ```ts
+import { AuthenticationError, ConnectionError, QueryError } from "@qualithm/rqlite-client"
+
 const result = await client.query("SELECT * FROM foo")
 
 if (!result.ok) {
