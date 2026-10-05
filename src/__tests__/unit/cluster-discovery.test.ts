@@ -39,7 +39,9 @@ const successResponse = (data?: unknown): MockResponseInit => ({
   data: data ?? { results: [{ rows_affected: 1, time: 0.001 }] }
 })
 
-const networkError = async (): Promise<never> => Promise.reject(new TypeError("fetch failed"))
+// A peer that is down refuses the connection, which proves a write never reached it.
+const networkError = async (): Promise<never> =>
+  Promise.reject(Object.assign(new TypeError("fetch failed"), { code: "ConnectionRefused" }))
 
 // =============================================================================
 // Tests

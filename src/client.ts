@@ -39,6 +39,12 @@ type RequestOptions = {
   params?: Record<string, string>
   timeout?: number
   signal?: AbortSignal
+  /**
+   * Whether a request that may have reached the server is safe to send again.
+   * A write is not: once it may have been applied, only an error that proves
+   * the request never left (connection refused, unresolved host) is retried.
+   */
+  idempotent?: boolean
 }
 
 // =============================================================================
@@ -174,12 +180,15 @@ export class RqliteClient {
     options?: ExecuteOptions
   ): Promise<Result<ExecuteResult[], RqliteError>> {
     const params = buildExecuteParams(options)
-    const result = await this.post<RqliteExecuteResponse>(
-      "/db/execute",
-      statements,
+    const result = await this.request<RqliteExecuteResponse>({
+      method: "POST",
+      path: "/db/execute",
+      body: statements,
       params,
-      options?.signal
-    )
+      signal: options?.signal,
+      timeout: options?.timeout,
+      idempotent: false
+    })
     if (!result.ok) {
       return result
     }
@@ -233,12 +242,14 @@ export class RqliteClient {
     options?: QueryOptions
   ): Promise<Result<QueryResult[], RqliteError>> {
     const queryParams = buildQueryParams(options, this.config)
-    const result = await this.post<RqliteQueryResponse>(
-      "/db/query",
-      statements,
-      queryParams,
-      options?.signal
-    )
+    const result = await this.request<RqliteQueryResponse>({
+      method: "POST",
+      path: "/db/query",
+      body: statements,
+      params: queryParams,
+      signal: options?.signal,
+      timeout: options?.timeout
+    })
     if (!result.ok) {
       return result
     }
@@ -352,12 +363,16 @@ export class RqliteClient {
     options?: RequestOpts
   ): Promise<Result<RequestResult[], RqliteError>> {
     const params = buildRequestParams(options, this.config)
-    const result = await this.post<RqliteRequestResponse>(
-      "/db/request",
-      statements,
+    const result = await this.request<RqliteRequestResponse>({
+      method: "POST",
+      path: "/db/request",
+      body: statements,
       params,
-      options?.signal
-    )
+      signal: options?.signal,
+      timeout: options?.timeout,
+      // A unified request may carry writes.
+      idempotent: false
+    })
     if (!result.ok) {
       return result
     }
@@ -674,6 +689,12 @@ export class RqliteClient {
         return result
       } catch (error) {
         lastError = mapFetchError(error, url)
+        // A write that may have reached the server is never sent again: a
+        // timed-out write can already be applied, and a second send applies
+        // it twice.
+        if (!retryable(options, error)) {
+          return err(lastError)
+        }
         redirectUrl = undefined
         // Advance to the next peer (wrapping around), then increment attempt count.
         peerIndex = (peerIndex + 1) % peers.length
@@ -939,6 +960,32 @@ async function handleResponse<T>(response: Response, url: string): Promise<Resul
   } catch {
     return err(new ConnectionError("failed to parse response as JSON", { url }))
   }
+}
+
+/** Error codes that prove a request never reached a server (Bun and Node spellings). */
+const NEVER_SENT_CODES = new Set([
+  "ConnectionRefused",
+  "ECONNREFUSED",
+  "FailedToOpenSocket",
+  "ENOTFOUND",
+  "EAI_AGAIN"
+])
+
+/** Whether a fetch error proves the request was never sent, so even a write may be retried. */
+function neverSent(error: unknown): boolean {
+  for (let e: unknown = error, depth = 0; e instanceof Error && depth < 4; depth++) {
+    const { code } = e as Error & { code?: unknown }
+    if (typeof code === "string" && NEVER_SENT_CODES.has(code)) {
+      return true
+    }
+    e = e.cause
+  }
+  return false
+}
+
+/** Whether a failed request may be sent again: always for a read, for a write only if it never left. */
+function retryable(options: RequestOptions, error: unknown): boolean {
+  return options.idempotent !== false || neverSent(error)
 }
 
 /** Map a fetch error (network, timeout, etc.) to a ConnectionError. */
