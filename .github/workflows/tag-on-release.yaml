@@ -99,10 +99,12 @@ jobs:
           fi
 
           tag="${prefix}${version}"
-          echo "kind=$kind" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
+          {
+            echo "kind=$kind"
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "prefix=$prefix"
+          } >> "$GITHUB_OUTPUT"
           echo "::notice::detected ${kind} version ${version} -> tag ${tag}"
 
       - name: Create and push tag if missing
