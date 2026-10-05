@@ -181,12 +181,54 @@ jobs:
             printf "Line coverage: %.2f%% (%d/%d)\n", pct, lh, lf
             if (pct + 0 < 80) { print "Coverage below 80% threshold"; exit 1 }
           }' coverage/lcov.info
-      - if: ${{ !cancelled() }}
+      - name: Fetch Codecov CLI
+        id: codecov-cli
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          # A pinned GitHub release instead of the action's runtime download
+          # from cli.codecov.io, whose TLS handshake fails from our runners.
+          # Bump both values together.
+          CODECOV_CLI_VERSION: v11.3.1
+          CODECOV_CLI_SHA256: ca1d64196d2d34771084afe76ea657d581bf628e31d993ff8e52ea09cc88a56d
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/codecov" \
+            "https://github.com/codecov/codecov-cli/releases/download/$CODECOV_CLI_VERSION/codecovcli_linux"
+          echo "$CODECOV_CLI_SHA256  $RUNNER_TEMP/codecov" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/codecov"
+      - name: Upload coverage to Codecov
+        id: codecov
+        if: ${{ !cancelled() && steps.codecov-cli.outcome == 'success' }}
+        continue-on-error: true
         uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
         with:
+          binary: ${{ runner.temp }}/codecov
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage/lcov.info
-          fail_ci_if_error: false
+          fail_ci_if_error: true
+      - name: Wait before retrying the Codecov upload
+        if: ${{ !cancelled() && steps.codecov.outcome == 'failure' }}
+        run: sleep 30
+      - name: Retry the Codecov upload
+        id: codecov-retry
+        if: ${{ !cancelled() && steps.codecov.outcome == 'failure' }}
+        continue-on-error: true
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
+        with:
+          binary: ${{ runner.temp }}/codecov
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          fail_ci_if_error: true
+      # Non-blocking by design: Codecov reports coverage, it never gates it, so
+      # a Codecov outage must not fail CI Required. A missed upload surfaces
+      # as a warning annotation and a job summary line instead.
+      - name: Report a failed Codecov upload
+        if:
+          ${{ !cancelled() && steps.codecov.outcome != 'success' && steps.codecov-retry.outcome !=
+          'success' }}
+        run: |
+          echo "::warning title=Codecov upload failed::coverage was not uploaded to Codecov after a retry"
+          echo "Codecov upload failed after a retry. See the upload steps in this job." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report

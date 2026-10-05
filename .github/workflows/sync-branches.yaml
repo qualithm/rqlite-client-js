@@ -52,10 +52,11 @@ jobs:
     # test. A push to main is always a promotion and always runs, whoever merged
     # it. A promotion into test merged by the App is skipped too; the daily
     # schedule realigns development onto it. A scheduled run's actor is whoever
-    # last edited the cron line, so the guard never skips it.
+    # last edited the cron line, so the guard never skips it. A pull_request run
+    # has nothing to sync (its ref is the PR merge ref), so it never starts.
     if: >-
-      github.event_name == 'schedule' || github.ref_name == 'main' || github.actor !=
-      'qualithm-ci[bot]'
+      github.event_name != 'pull_request' && (github.event_name == 'schedule' || github.ref_name ==
+      'main' || github.actor != 'qualithm-ci[bot]')
     steps:
       - name: Generate GitHub App token
         id: app-token
@@ -97,7 +98,8 @@ jobs:
             if git merge-base --is-ancestor origin/main origin/test; then
               echo "test is ahead of main (a promotion awaiting its test → main hop) — left untouched"
             else
-              echo "::warning::test is behind main and carries changes main lacks — left untouched for manual resolution"
+              echo "test is behind main and carries changes main lacks — left untouched, failing the run after the development realign"
+              echo "diverged=true" >> "$GITHUB_OUTPUT"
             fi
             echo "aligned=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -137,8 +139,10 @@ jobs:
                 echo "development realigned onto main"
               fi
             else
+              conflicts=$(git diff --name-only --diff-filter=U | paste -sd ' ' -)
               git rebase --abort
-              echo "development conflicts with main — left untouched for manual resolution"
+              echo "::error::${{ github.repository }}: development conflicts with main in ${conflicts:-(no conflicting files reported)} — rebase aborted, development left untouched for manual resolution"
+              exit 1
             fi
           fi
 
@@ -176,7 +180,17 @@ jobs:
                 echo "development realigned onto test"
               fi
             else
+              conflicts=$(git diff --name-only --diff-filter=U | paste -sd ' ' -)
               git rebase --abort
-              echo "development conflicts with test — left untouched for manual resolution"
+              echo "::error::${{ github.repository }}: development conflicts with test in ${conflicts:-(no conflicting files reported)} — rebase aborted, development left untouched for manual resolution"
+              exit 1
             fi
           fi
+
+      # Runs after the development realign so a diverged test still gets
+      # development rebased onto it, then fails the run so a person sees it.
+      - name: Fail on diverged test
+        if: ${{ !cancelled() && steps.reset-test.outputs.diverged == 'true' }}
+        run: |
+          echo "::error::${{ github.repository }}: test is behind main and carries changes main lacks — resolve manually"
+          exit 1
