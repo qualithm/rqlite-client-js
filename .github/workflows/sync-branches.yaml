@@ -8,11 +8,17 @@ on:
     branches: [main, test]
   pull_request:
     branches: [test, main]
+  # A missed push run leaves test/development behind main until the next
+  # promotion goes DIRTY. The daily run executes on the default branch, so it
+  # takes the main path below and realigns whatever a missed push left behind.
+  schedule:
+    - cron: "17 5 * * *" # Daily at 05:17 UTC
   workflow_dispatch: {}
 
 concurrency:
   group: sync-${{ github.ref_name }}
-  cancel-in-progress: true
+  # A scheduled run queues behind an in-flight push run instead of cancelling it.
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
 permissions:
   contents: write
@@ -41,7 +47,9 @@ jobs:
   sync:
     name: Sync downstream branches
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    if: github.actor != 'github-actions[bot]'
+    # A scheduled run's actor is whoever last edited the cron line, so never
+    # let the bot-loop guard skip it.
+    if: github.event_name == 'schedule' || github.actor != 'github-actions[bot]'
     steps:
       - name: Generate GitHub App token
         id: app-token
@@ -61,15 +69,40 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       # Keep test branch ancestry aligned with main to avoid cumulative merge commits.
+      # A push to main is a test → main promotion that just merged, so test
+      # resets unconditionally. A scheduled or manual run is catching a missed
+      # push and may find a development → test promotion still awaiting its
+      # test → main hop; it resets only when nothing on test would be lost —
+      # test is an ancestor of main, or its tree already equals main's (the
+      # pre-squash copy of a promotion main already carries).
       - name: Reset test to main
+        id: reset-test
         if: github.ref_name == 'main'
         run: |
           git checkout test
+          if [ "$(git rev-parse origin/test)" = "$(git rev-parse origin/main)" ]; then
+            echo "test already equals main — nothing to push"
+            echo "aligned=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${{ github.event_name }}" != "push" ] \
+            && ! git merge-base --is-ancestor origin/test origin/main \
+            && ! git diff --quiet origin/main origin/test; then
+            if git merge-base --is-ancestor origin/main origin/test; then
+              echo "test is ahead of main (a promotion awaiting its test → main hop) — left untouched"
+            else
+              echo "::warning::test is behind main and carries changes main lacks — left untouched for manual resolution"
+            fi
+            echo "aligned=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           git reset --hard origin/main
           git push --force-with-lease origin test
+          echo "test reset onto main"
+          echo "aligned=true" >> "$GITHUB_OUTPUT"
 
       - name: Realign development onto main
-        if: github.ref_name == 'main'
+        if: github.ref_name == 'main' && steps.reset-test.outputs.aligned == 'true'
         run: |
           git checkout development
           # A squash merge collapses a PR's N commits into one, so the promoted
@@ -104,8 +137,11 @@ jobs:
           fi
 
       # When test advances, realign development onto it so its base does not rot.
+      # A main-path run that left test untouched realigns onto test for the same reason.
       - name: Realign development onto test
-        if: github.ref_name == 'test'
+        if: >-
+          github.ref_name == 'test' || (github.ref_name == 'main' &&
+          steps.reset-test.outputs.aligned == 'false')
         run: |
           git checkout development
           # A squash merge collapses a PR's N commits into one, so the promoted
