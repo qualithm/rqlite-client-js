@@ -1,8 +1,6 @@
 /**
- * Testing utilities for @qualithm/rqlite-client.
- *
- * This subpath export (`@qualithm/rqlite-client/testing`) provides utilities
- * for testing code that depends on this package.
+ * Test helpers for code that uses Rqlite Client, exported at
+ * `@qualithm/rqlite-client/testing`.
  *
  * @example
  * ```ts
