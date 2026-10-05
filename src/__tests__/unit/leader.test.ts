@@ -4,6 +4,11 @@ import { RqliteClient } from "../../client"
 import { ConnectionError } from "../../errors"
 import { isErr, isOk } from "../../result"
 
+/** A refused connection: proves the request never reached a server, so even a write retries. */
+function refused(): TypeError {
+  return Object.assign(new TypeError("fetch failed"), { code: "ConnectionRefused" })
+}
+
 // =============================================================================
 // Helpers
 // =============================================================================
@@ -200,7 +205,7 @@ describe("RqliteClient leader handling", () => {
           })
         )
         // Network failure after redirects — uses retry budget
-        .mockRejectedValueOnce(new TypeError("fetch failed"))
+        .mockRejectedValueOnce(refused())
         .mockResolvedValueOnce(
           createMockResponse({
             ok: true,
@@ -263,7 +268,7 @@ describe("RqliteClient leader handling", () => {
     it("retries on network error and succeeds", async () => {
       const fetchMock = vi
         .fn()
-        .mockRejectedValueOnce(new TypeError("fetch failed"))
+        .mockRejectedValueOnce(refused())
         .mockResolvedValueOnce(
           createMockResponse({
             ok: true,
@@ -282,7 +287,7 @@ describe("RqliteClient leader handling", () => {
       expect(fetchMock).toHaveBeenCalledTimes(2)
     })
 
-    it("retries on timeout and succeeds", async () => {
+    it("retries a timed-out read and succeeds", async () => {
       let callCount = 0
       const fetchMock = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
         callCount++
@@ -296,13 +301,13 @@ describe("RqliteClient leader handling", () => {
         return createMockResponse({
           ok: true,
           status: 200,
-          data: { results: [{ rows_affected: 1, time: 0.001 }] }
+          data: { results: [{ columns: ["n"], types: ["integer"], values: [[1]], time: 0.001 }] }
         })
       })
       vi.stubGlobal("fetch", fetchMock)
       const client = createClient({ timeout: 100 })
 
-      const resultPromise = client.execute("INSERT INTO foo VALUES(1)")
+      const resultPromise = client.query("SELECT 1 AS n")
       // First: timeout fires at 100ms, then retry backoff ~100ms, then immediate success
       await vi.advanceTimersByTimeAsync(500)
       const result = await resultPromise
@@ -311,8 +316,61 @@ describe("RqliteClient leader handling", () => {
       expect(fetchMock).toHaveBeenCalledTimes(2)
     })
 
+    it("never resends a timed-out write, which may already be applied", async () => {
+      const fetchMock = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => {
+            reject(new DOMException("signal is aborted", "AbortError"))
+          })
+        })
+      })
+      vi.stubGlobal("fetch", fetchMock)
+      const client = createClient({ timeout: 100 })
+
+      const resultPromise = client.execute("INSERT INTO foo VALUES(1)")
+      await vi.advanceTimersByTimeAsync(1000)
+      const result = await resultPromise
+
+      expect(isErr(result)).toBe(true)
+      if (!result.ok) {
+        expect(result.error.message).toBe("request timed out")
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it("never resends a write after an ambiguous network error", async () => {
+      const fetchMock = vi.fn().mockRejectedValue(new TypeError("socket hang up"))
+      vi.stubGlobal("fetch", fetchMock)
+      const client = createClient({ maxRetries: 3 })
+
+      const resultPromise = client.execute("INSERT INTO foo VALUES(1)")
+      await vi.advanceTimersByTimeAsync(5000)
+      const result = await resultPromise
+
+      expect(isErr(result)).toBe(true)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it("honours a per-call timeout", async () => {
+      const fetchMock = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => {
+            reject(new DOMException("signal is aborted", "AbortError"))
+          })
+        })
+      })
+      vi.stubGlobal("fetch", fetchMock)
+      const client = createClient({ timeout: 60_000 })
+
+      const resultPromise = client.execute("INSERT INTO foo VALUES(1)", undefined, { timeout: 50 })
+      await vi.advanceTimersByTimeAsync(100)
+      const result = await resultPromise
+
+      expect(isErr(result)).toBe(true)
+    })
+
     it("returns last error after all retries exhausted", async () => {
-      const fetchMock = vi.fn().mockRejectedValue(new TypeError("fetch failed"))
+      const fetchMock = vi.fn().mockRejectedValue(refused())
       vi.stubGlobal("fetch", fetchMock)
       const client = createClient({ maxRetries: 2 })
 
@@ -334,8 +392,8 @@ describe("RqliteClient leader handling", () => {
     it("applies jittered exponential backoff between retries", async () => {
       const fetchMock = vi
         .fn()
-        .mockRejectedValueOnce(new TypeError("fetch failed"))
-        .mockRejectedValueOnce(new TypeError("fetch failed"))
+        .mockRejectedValueOnce(refused())
+        .mockRejectedValueOnce(refused())
         .mockResolvedValueOnce(
           createMockResponse({
             ok: true,
@@ -371,7 +429,7 @@ describe("RqliteClient leader handling", () => {
     it("uses custom retryBaseDelay", async () => {
       const fetchMock = vi
         .fn()
-        .mockRejectedValueOnce(new TypeError("fetch failed"))
+        .mockRejectedValueOnce(refused())
         .mockResolvedValueOnce(
           createMockResponse({
             ok: true,
@@ -428,7 +486,7 @@ describe("RqliteClient leader handling", () => {
     })
 
     it("defaults maxRetries to 3", async () => {
-      const fetchMock = vi.fn().mockRejectedValue(new TypeError("fetch failed"))
+      const fetchMock = vi.fn().mockRejectedValue(refused())
       vi.stubGlobal("fetch", fetchMock)
       const client = createClient() // no maxRetries specified
 
@@ -464,7 +522,7 @@ describe("RqliteClient leader handling", () => {
     })
 
     it("sets maxRetries to 0 to disable retries", async () => {
-      const fetchMock = vi.fn().mockRejectedValue(new TypeError("fetch failed"))
+      const fetchMock = vi.fn().mockRejectedValue(refused())
       vi.stubGlobal("fetch", fetchMock)
       const client = createClient({ maxRetries: 0 })
 
