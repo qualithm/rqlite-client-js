@@ -1,8 +1,5 @@
 /**
  * HTTP client for rqlite.
- *
- * Provides low-level connection management, authentication, timeout handling,
- * and error mapping. Higher-level operations (execute, query) are built on top.
  */
 
 import { AuthenticationError, ConnectionError, QueryError, type RqliteError } from "./errors.js"
