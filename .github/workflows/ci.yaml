@@ -28,6 +28,7 @@ jobs:
     outputs:
       code: ${{ steps.f.outputs.code }}
       is-main: ${{ steps.tier.outputs.is-main }}
+      integration: ${{ steps.integration.outputs.present }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
@@ -46,6 +47,15 @@ jobs:
             echo "is-main=true" >> "$GITHUB_OUTPUT"
           else
             echo "is-main=false" >> "$GITHUB_OUTPUT"
+          fi
+      # A repo opts into the Integration Tests job by defining
+      # test:integration:ci (Decision qualithm/pm#1225).
+      - id: integration
+        run: |
+          if jq -e '.scripts["test:integration:ci"]' package.json > /dev/null; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
   lint:
@@ -235,6 +245,22 @@ jobs:
           path: coverage/
           retention-days: 14
 
+  integration:
+    name: Integration Tests
+    # Runs on the test and main hops only (Decision qualithm/pm#1225): each
+    # repo's test:integration:ci brings up its own backends with docker compose.
+    needs: changes
+    if: >-
+      needs.changes.outputs.code == 'true' && needs.changes.outputs.integration == 'true' &&
+      (github.base_ref == 'test' || needs.changes.outputs.is-main == 'true')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - run: bun install --frozen-lockfile
+      - run: bun run test:integration:ci
+
   image-pins:
     name: Image Pins
     # Every image reference in the repo must match the vendored dx registry
@@ -266,6 +292,7 @@ jobs:
         test-deno,
         validate-runtime,
         coverage,
+        integration,
         image-pins
       ]
     runs-on: blacksmith-4vcpu-ubuntu-2404
