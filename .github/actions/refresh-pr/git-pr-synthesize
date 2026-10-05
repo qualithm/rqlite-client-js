@@ -4,7 +4,7 @@
 #                            [--json]
 #
 # Synthesizes a feature PR's title and body from the commit range
-# origin/<base>..HEAD, following pr.instructions.md. This is the single
+# origin/<base>..HEAD, following .claude/rules/pr.md. This is the single
 # implementation shared by scripts/git-feature (which pushes and opens the PR)
 # and the pr-refresh workflow vendored into every enrolled repo (which
 # regenerates an open PR's body on every push) — so a CI-refreshed body is

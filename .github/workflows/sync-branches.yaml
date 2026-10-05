@@ -47,9 +47,15 @@ jobs:
   sync:
     name: Sync downstream branches
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    # A scheduled run's actor is whoever last edited the cron line, so never
-    # let the bot-loop guard skip it.
-    if: github.event_name == 'schedule' || github.actor != 'github-actions[bot]'
+    # This job pushes test/development with the CI App token, and unlike
+    # GITHUB_TOKEN those pushes trigger workflows, so skip the App's own push to
+    # test. A push to main is always a promotion and always runs, whoever merged
+    # it. A promotion into test merged by the App is skipped too; the daily
+    # schedule realigns development onto it. A scheduled run's actor is whoever
+    # last edited the cron line, so the guard never skips it.
+    if: >-
+      github.event_name == 'schedule' || github.ref_name == 'main' || github.actor !=
+      'qualithm-ci[bot]'
     steps:
       - name: Generate GitHub App token
         id: app-token
