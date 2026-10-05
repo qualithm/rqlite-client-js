@@ -32,9 +32,14 @@ jobs:
       contents: read
     steps:
       - name: Enforce promotion path
+        # The head branch name is chosen by whoever opens the PR, so it reaches
+        # the script through env, never as an expanded expression.
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          base="${{ github.base_ref }}"
-          head="${{ github.head_ref }}"
+          base="$BASE_REF"
+          head="$HEAD_REF"
           case "$base" in
             test) allowed="development" ;;
             main) allowed="test" ;;
