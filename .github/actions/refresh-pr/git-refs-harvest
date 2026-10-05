@@ -117,9 +117,9 @@ class Harvester:
             return self._pr_for_commit[sha]
         prs = gh_api(self.repo, f"commits/{sha}/pulls") or []
         merged = [p for p in prs if p.get("merged_at")]
+        p = merged[0] if merged else self.pr_from_subject(sha)
         result = None
-        if merged:
-            p = merged[0]
+        if p:
             result = {
                 "number": p["number"],
                 "title": p.get("title") or "",
@@ -127,6 +127,25 @@ class Harvester:
             }
         self._pr_for_commit[sha] = result
         return result
+
+    def pr_from_subject(self, sha):
+        """The PR named by `sha`'s squash subject `... (#N)`, if it merged as `sha`.
+
+        GitHub indexes a new squash commit's PR association a few seconds after
+        the merge, so `commits/{sha}/pulls` answers [] for a commit promoted
+        straight after its PR merged (`dx git land`; qualithm/pm#1061) and the
+        harvest would fall back to a subject with no references. `pulls/N` is
+        consistent immediately; trusting it only when its merge_commit_sha is
+        `sha` keeps an unrelated (#N) from being read as this commit's PR.
+        """
+        subject = git_output(self.repo_dir, "log", "--format=%s", "-1", sha).strip()
+        m = re.search(r"\(#(\d+)\)$", subject)
+        if not m:
+            return None
+        p = gh_api(self.repo, f"pulls/{m.group(1)}")
+        if not p or not p.get("merged_at") or p.get("merge_commit_sha") != sha:
+            return None
+        return p
 
     def pr_commits(self, number):
         """A PR's pre-squash commits as a list of {sha, message}."""
