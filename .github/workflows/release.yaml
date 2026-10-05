@@ -54,13 +54,13 @@ jobs:
         run: |
           PACKAGE_NAME=$(jq -r .name package.json)
           PACKAGE_VERSION=$(jq -r .version package.json)
-          echo "package=$PACKAGE_NAME@$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "package=$PACKAGE_NAME@$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
 
           if npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version 2>/dev/null; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "::notice::Version $PACKAGE_VERSION already published, skipping"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Version $PACKAGE_VERSION not found, will publish"
           fi
 
