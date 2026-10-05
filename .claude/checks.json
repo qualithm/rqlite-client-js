@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "run": "bun run lint",
+      "timeout": "10m",
+      "dir": "."
+    },
+    {
+      "run": "bun run format",
+      "timeout": "10m",
+      "dir": "."
+    },
+    {
+      "run": "bun run typecheck",
+      "timeout": "10m",
+      "dir": "."
+    },
+    {
+      "run": "bun run test:unit",
+      "timeout": "10m",
+      "dir": "."
+    }
+  ]
+}
