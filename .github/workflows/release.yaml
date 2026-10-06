@@ -132,7 +132,7 @@ jobs:
           # PREV_TAG is the most recent tag reachable before this one, if any.
           PREV_TAG=$(git tag --sort=-creatordate --merged "$TAG" | grep -Fxv "$TAG" | head -1 || true)
 
-          # Injected from dx scripts/changelog-notes by release-sync — do not
+          # Injected from dx ci-templates/_changelog-notes.py by release-sync — do not
           # hand-edit; change the source script and re-run release-sync.
           # Recursively unpacks squashed promotion-hop commits back to their
           # real leaf commits, since neither `gh release create
