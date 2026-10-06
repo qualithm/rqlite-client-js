@@ -141,5 +141,18 @@
       "Bash(dx tag sync)",
       "Bash(dx tag sync *)"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Context was just compacted. If you were running the shift skill: invoke it again, read your ledger, then rerun its order from step 0. Never start a second dx git land on a PR already queued or landing.'"
+          }
+        ]
+      }
+    ]
   }
 }
