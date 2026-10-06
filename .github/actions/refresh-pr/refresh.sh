@@ -2,7 +2,7 @@
 # Refresh a pull request's title/body from its live commit range, using the
 # vendored git-pr-synthesize sibling. Vendored into every enrolled repo by
 # dx/scripts/pr-sync — do not edit a repo's copy; change pr-templates/
-# refresh.sh here and re-run `dx pr sync`. (dx#317)
+# refresh.sh here and re-run `dx pr sync`. (qualithm/pm#418)
 #
 # Usage: refresh.sh <base-branch> <pr-number>
 #
