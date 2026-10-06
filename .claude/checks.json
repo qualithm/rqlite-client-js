@@ -17,8 +17,8 @@
       "dir": "."
     },
     {
-      "run": "bun run test:unit",
-      "timeout": "10m",
+      "run": "python3 .claude/checks/ci-jobs.py --skip-ci-only coverage",
+      "timeout": "30m",
       "dir": "."
     }
   ]
