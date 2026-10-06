@@ -8,9 +8,9 @@
 # is `close` if the reference was ever written with a closing keyword
 # (close/fix/resolve) and `ref` otherwise. The caller promotes only `close`-kind
 # references to `Closes #N` on the hop into the default branch and leaves a
-# deliberate `Refs #N` as `Refs #N` everywhere (never auto-upgraded — see dx#98).
+# deliberate `Refs #N` as `Refs #N` everywhere (never auto-upgraded — see qualithm/pm#477).
 #
-# The squash blind spot (dx#121): every repo squash-merges with
+# The squash blind spot (qualithm/pm#475): every repo squash-merges with
 # `squash_merge_commit_message: BLANK`, so a promoted commit's own message is
 # just the PR title — the references live only in PR metadata. Worse, on a
 # 3-branch repo (development→test→main) `dx git feature --base development`
@@ -29,7 +29,7 @@
 #   git-refs-harvest --repo-dir DIR --range RANGE [--repo owner/name]
 #                    [--delivered-only]
 #
-# --delivered-only (dx#144): harvest references only from commits whose PATCH the
+# --delivered-only (qualithm/pm#471): harvest references only from commits whose PATCH the
 # range actually delivers — dropping commits that a promotion hop reaches by
 # commit-graph ancestry but whose content is already present in the target (e.g.
 # a direct-to-protected-branch push landed the same patch first). This keeps a
@@ -57,7 +57,7 @@ PROMOTION_TITLE = re.compile(
 
 # A single-commit hop reuses the promoted commit's subject as its PR title
 # (scripts/git-merge synthesize_pr), so PROMOTION_TITLE misses it and the leaf
-# never gets unpacked (dx#128). synthesize_pr always opens the PR *body* with
+# never gets unpacked (qualithm/pm#473). synthesize_pr always opens the PR *body* with
 # "Promotes `<src>` → `<dst>` (N commit…)" regardless of title, and a feature
 # PR body (scripts/git-feature) opens with its own subject — so this marker
 # identifies a promotion hop without ever matching a leaf feature PR.
@@ -203,7 +203,7 @@ class Harvester:
                 # a dead end (the hop's own squash commit maps back to itself).
                 # Recover via the hop's title, which names the promoted PRs as
                 # (#N); each named PR's body and pre-squash commits carry the
-                # references the SHA walk could not reach (dx#245).
+                # references the SHA walk could not reach (qualithm/pm#432).
                 for ref_pr in self.prs_named_in_title(pr["title"]):
                     if ref_pr["body"]:
                         texts.append(ref_pr["body"])
