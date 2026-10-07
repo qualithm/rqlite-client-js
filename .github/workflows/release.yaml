@@ -25,6 +25,7 @@ jobs:
     # self-hosted runners such as Blacksmith with E422 "Unsupported GitHub
     # Actions runner environment".
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     environment:
       name: npm
     permissions:
@@ -71,6 +72,7 @@ jobs:
   deploy-docs:
     name: Deploy Docs
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -105,6 +107,7 @@ jobs:
   github-release:
     name: Create GitHub Release
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
     needs: [publish-npm, deploy-docs]
     permissions:
       contents: write
