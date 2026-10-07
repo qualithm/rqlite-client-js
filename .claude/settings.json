@@ -114,6 +114,8 @@
       "Bash(dx release drift *)",
       "Bash(dx tag drift)",
       "Bash(dx tag drift *)",
+      "Bash(dx chat trust --dry-run)",
+      "Bash(dx chat trust --dry-run *)",
       "Bash(dx chat sync)",
       "Bash(dx chat sync *)",
       "Bash(dx ci sync)",
