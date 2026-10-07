@@ -28,6 +28,7 @@ jobs:
     name: Source Branch
     if: github.event_name == 'pull_request'
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -52,6 +53,7 @@ jobs:
   sync:
     name: Sync downstream branches
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
     # This job pushes test/development with the CI App token, and unlike
     # GITHUB_TOKEN those pushes trigger workflows, so skip the App's own push to
     # test. A push to main is always a promotion and always runs, whoever merged

@@ -27,6 +27,7 @@ jobs:
   changes:
     name: Detect Changes
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
     outputs:
       code: ${{ steps.f.outputs.code }}
       is-main: ${{ steps.tier.outputs.is-main }}
@@ -65,6 +66,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -85,6 +87,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -96,6 +99,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -107,6 +111,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -127,6 +132,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -147,6 +153,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.is-main == 'true'
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: denoland/setup-deno@667a34cdef165d8d2b2e98dde39547c9daac7282 # v2.0.4
@@ -162,6 +169,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true' && needs.changes.outputs.is-main == 'true'
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -180,6 +188,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -270,6 +279,7 @@ jobs:
     # included: a README can carry an image reference too. Repos not enrolled
     # in dx images-sync.config carry no vendored registry and skip.
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Check image pins against the vendored dx registry
@@ -298,6 +308,7 @@ jobs:
         image-pins
       ]
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
     steps:
       - name: Verify dependent jobs
         env:

@@ -35,6 +35,7 @@ jobs:
   tag:
     name: Tag main when version changes
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
     steps:
       - name: Generate GitHub App token
         id: app-token
