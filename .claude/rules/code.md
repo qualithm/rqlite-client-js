@@ -20,8 +20,9 @@ what it flags; this file covers what it can't.
 
 ## When code changes
 
-A behavior change carries a test change. Update types, env vars, error messages and JSDoc that
-mention a changed shape in the same change, and drop a dependency nothing imports any more.
+A behavior change carries tests that cover its new lines (`dx coverage patch` checks them after the
+coverage step). Update types, env vars, error messages and JSDoc that mention a changed shape in the
+same change, and drop a dependency nothing imports any more.
 
 ## Comments
 
