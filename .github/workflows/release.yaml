@@ -22,8 +22,8 @@ jobs:
     name: Publish to npm
     # Must stay on a GitHub-hosted runner. Trusted publishing (OIDC, no npm
     # token) always signs provenance, and npm rejects provenance from
-    # self-hosted runners such as Blacksmith with E422 "Unsupported GitHub
-    # Actions runner environment".
+    # self-hosted runners with E422 "Unsupported GitHub Actions runner
+    # environment".
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -71,7 +71,7 @@ jobs:
 
   deploy-docs:
     name: Deploy Docs
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
       name: github-pages
@@ -106,7 +106,7 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [publish-npm, deploy-docs]
     permissions:
