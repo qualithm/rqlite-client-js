@@ -11,8 +11,11 @@ drift with `dx ci drift`). Run these before committing so CI passes on the first
 bun run lint
 bun run format
 bun run typecheck
-bun run test:unit
+python3 .claude/checks/ci-jobs.py --skip-ci-only coverage
 ```
+
+The `ci-jobs.py --skip-ci-only coverage` step runs CI's Coverage job locally: the same tests and the
+same 80% line-coverage gate, minus the Codecov upload, so coverage is fixed in the same PR.
 
 CI runs coverage on every PR, whatever the target branch, and on push to `main`:
 
