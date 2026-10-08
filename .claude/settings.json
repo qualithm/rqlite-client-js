@@ -339,7 +339,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'Context was just compacted. If this session was running the shift skill, your first actions, before any other tool call and even when the summary names a next step: invoke the shift skill, read <scratchpad>/shift.md, then rerun its order from step 0. Never start a second dx git land on a PR already queued or landing.'"
+            "command": "echo 'Context was just compacted. If this session was running the shift or focus skill, your first two tool calls, even when the summary names a next step, are: invoke that skill, then Read shift.md in the scratchpad directory your system prompt names. Then rerun the order from step 0. Never start a second dx git land on a PR already queued or landing.'"
           }
         ]
       }
