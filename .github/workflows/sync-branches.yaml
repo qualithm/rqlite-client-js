@@ -27,7 +27,7 @@ jobs:
   guard:
     name: Source Branch
     if: github.event_name == 'pull_request'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -52,7 +52,7 @@ jobs:
           fi
   sync:
     name: Sync downstream branches
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     # This job pushes test/development with the CI App token, and unlike
     # GITHUB_TOKEN those pushes trigger workflows, so skip the App's own push to
