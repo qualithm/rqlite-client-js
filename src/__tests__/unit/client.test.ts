@@ -113,6 +113,24 @@ describe("RqliteClient", () => {
       )
     })
 
+    it("accepts a plain wrapper function without a cast", async () => {
+      const seen: unknown[] = []
+      const client = new RqliteClient({
+        host: "localhost:4001",
+        // The README's mTLS shape: a wrapper has none of the static members
+        // the global fetch carries, so this line is what the type must accept.
+        fetch: async (input, init) => {
+          seen.push([init?.method, input])
+          return Promise.resolve(new Response(JSON.stringify({ store: {} }), { status: 200 }))
+        },
+        clusterDiscovery: false
+      })
+
+      await client.get("/status")
+
+      expect(seen).toEqual([["GET", expect.stringContaining("http://localhost:4001/status")]])
+    })
+
     it("passes headers and body through custom fetch", async () => {
       const customFetch = vi.fn().mockResolvedValue({
         ok: true,
