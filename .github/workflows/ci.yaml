@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
-      code: ${{ steps.f.outputs.code }}
+      code: ${{ steps.f.outputs.code == 'true' || steps.f.outputs.ci == 'true' }}
       is-main: ${{ steps.tier.outputs.is-main }}
       integration: ${{ steps.integration.outputs.present }}
     steps:
@@ -37,13 +37,21 @@ jobs:
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: f
         with:
+          # A file must match every pattern. Under the default, any one match
+          # is enough, so '**' alone marks every file as code and no exclusion
+          # applies.
+          predicate-quantifier: every
           filters: |
             code:
               - '**'
               - '!**/*.md'
+              - '!.claude/**'
+              - '!.github/**'
               - '!.vscode/**'
-              - '!docker/**'
               - '!LICENSE'
+            # The one file under .github/ that changes what these jobs run.
+            ci:
+              - '.github/workflows/ci.yaml'
       - id: tier
         run: |
           if [[ "${{ github.base_ref }}" == "main" ]]; then
