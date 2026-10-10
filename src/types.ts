@@ -108,8 +108,15 @@ export type RqliteConfig = {
    * })
    * ```
    */
-  fetch?: typeof fetch
+  fetch?: FetchFunction
 }
+
+/**
+ * A function that can stand in for the global `fetch`. Narrower than
+ * `typeof fetch`, which under Bun's types also demands static members such as
+ * `preconnect` that a wrapper function does not have.
+ */
+export type FetchFunction = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 
 // =============================================================================
 // SQL Values

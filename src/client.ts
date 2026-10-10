@@ -8,6 +8,7 @@ import type {
   ClusterNode,
   ExecuteOptions,
   ExecuteResult,
+  FetchFunction,
   PageResult,
   PaginationOptions,
   QueryOptions,
@@ -69,7 +70,7 @@ export class RqliteClient {
   private readonly maxRetries: number
   private readonly maxRedirects: number
   private readonly retryBaseDelay: number
-  private readonly fetchFn: typeof fetch
+  private readonly fetchFn: FetchFunction
   private readonly clientController: AbortController
   private readonly clusterDiscovery: boolean
   /** Ordered list of known peer base URLs. The primary host is always first. */
