@@ -329,18 +329,6 @@ if (!result.ok) {
 }
 ```
 
-Errors can also be matched by their `tag` property:
-
-```ts
-if (!result.ok) {
-  switch (result.error.tag) {
-    case "ConnectionError": // network, timeout, redirect
-    case "QueryError": // SQL errors from rqlite
-    case "AuthenticationError": // 401/403
-  }
-}
-```
-
 ## API Reference
 
 Full API documentation is generated with [TypeDoc](https://typedoc.org/):
@@ -354,15 +342,18 @@ bun run docs
 
 See the [`examples/`](examples/) directory for runnable examples:
 
-| Example                                               | Description                                                         |
-| ----------------------------------------------------- | ------------------------------------------------------------------- |
-| [`basic-usage.ts`](examples/basic-usage.ts)           | Connect, execute, and query                                         |
-| [`batch-processing.ts`](examples/batch-processing.ts) | Batch insert, query, and mixed requests                             |
-| [`transactions.ts`](examples/transactions.ts)         | Atomic multi-statement transactions                                 |
-| [`authentication.ts`](examples/authentication.ts)     | Basic auth and TLS                                                  |
-| [`mtls.ts`](examples/mtls.ts)                         | Custom fetch injection for mTLS                                     |
-| [`cluster-failover.ts`](examples/cluster-failover.ts) | Leader redirect, multi-host seeds, cluster discovery, health checks |
-| [`error-handling.ts`](examples/error-handling.ts)     | Result-based error handling and type narrowing                      |
+| Example                                                   | Description                                                         |
+| --------------------------------------------------------- | ------------------------------------------------------------------- |
+| [`basic-usage.ts`](examples/basic-usage.ts)               | Connect, execute, and query                                         |
+| [`batch-processing.ts`](examples/batch-processing.ts)     | Batch insert, query, and mixed requests                             |
+| [`transactions.ts`](examples/transactions.ts)             | Atomic multi-statement transactions                                 |
+| [`authentication.ts`](examples/authentication.ts)         | Basic auth and TLS                                                  |
+| [`mtls.ts`](examples/mtls.ts)                             | Custom fetch injection for mTLS                                     |
+| [`cluster-failover.ts`](examples/cluster-failover.ts)     | Leader redirect, multi-host seeds, cluster discovery, health checks |
+| [`error-handling.ts`](examples/error-handling.ts)         | Result-based error handling and type narrowing                      |
+| [`pagination.ts`](examples/pagination.ts)                 | Paginated queries and `toRows` result conversion                    |
+| [`consistency-levels.ts`](examples/consistency-levels.ts) | Read consistency and freshness options                              |
+| [`client-lifecycle.ts`](examples/client-lifecycle.ts)     | Abort signals, `destroy()`, and server version                      |
 
 ```bash
 bun run examples/basic-usage.ts
