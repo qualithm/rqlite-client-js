@@ -20,6 +20,7 @@ export type {
   ConsistencyLevel,
   ExecuteOptions,
   ExecuteResult,
+  FetchFunction,
   FreshnessOptions,
   PageResult,
   PaginationOptions,
