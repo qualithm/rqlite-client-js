@@ -92,8 +92,8 @@ jobs:
 
   format:
     name: Format
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
+    # Runs on every PR, docs included: prettier checks Markdown and .claude/
+    # too, and a docs-only change that skipped it would fail the next PR.
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
