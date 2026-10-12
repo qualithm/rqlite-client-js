@@ -26,7 +26,9 @@ A body, when asked for, follows a blank line and explains what and why, not how.
 - **Board issues** use the cross-repo form, one per line: `Refs: qualithm/pm#N` for progress,
   `Closes: qualithm/pm#N` (or `Fixes:`/`Resolves:`) only when the commit completes the issue. The
   keyword is never upgraded, so a `Refs` never auto-closes anything.
-- Never add `Co-authored-by` or any other agent-attribution trailer.
+- **An agent signs every commit it writes** with `Co-Authored-By: Claude <noreply@anthropic.com>` as
+  the last trailer, and with no other attribution line. A commit a person wrote carries none; never
+  add one for them or remove one an agent wrote.
 
 **Never restate internal content.** Reference the issue; never repeat its reasoning, the names of
 private repos or services, or a Decision's content. Commit history is permanent and public repos
