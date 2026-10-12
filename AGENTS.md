@@ -5,7 +5,8 @@ A portable summary for agents that don't load `.claude/rules/`; those files are 
 - **Checks** — run `.claude/rules/checks.md` before committing; it matches CI.
 - **Commits** — Conventional Commit header only: `type(scope)!: subject`, imperative, lowercase, no
   trailing period. `Refs: qualithm/pm#N` for progress, `Closes:` only when the commit completes the
-  issue. No agent-attribution trailers. Never restate internal content.
+  issue. An agent signs its commits with `Co-Authored-By: Claude <noreply@anthropic.com>`. Never
+  restate internal content.
 - **Branches and PRs** — cut a kebab-case branch from `development` (or `main` in single-branch
   repos) and open its PR with `dx git feature`; never push to or PR into `test`/`main` directly.
   Delete the branch once its PR merges.

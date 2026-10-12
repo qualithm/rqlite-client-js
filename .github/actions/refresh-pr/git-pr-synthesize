@@ -262,6 +262,16 @@ fi
 # trailer. Each distinct stamp in the range closes the body, oldest first, so a
 # refresh keeps it on the pull request. (See qualithm/pm#1800.)
 stamps=$(git -C "$REPO_DIR" log --reverse --format='%B' "$range" | grep '^Millwright-Run: ' | awk '!seen[$0]++' || true)
+# An agent signs the commits it writes with a `Co-Authored-By:` trailer. The
+# squash commit keeps only the title, so each distinct one joins the stamps and
+# the pull request stays the record of who wrote the change. (Decision
+# qualithm/pm#1821.)
+authors=$(git -C "$REPO_DIR" log --reverse --format='%B' "$range" | grep -i '^Co-authored-by: ' | awk '!seen[tolower($0)]++' || true)
+if [[ -n "$stamps" && -n "$authors" ]]; then
+  stamps="$stamps"$'\n'"$authors"
+elif [[ -n "$authors" ]]; then
+  stamps="$authors"
+fi
 if [[ -n "$stamps" ]]; then
   body="${body%$'\n'}"$'\n\n'"$stamps"$'\n'
 fi
