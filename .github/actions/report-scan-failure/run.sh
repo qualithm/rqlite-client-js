@@ -22,7 +22,7 @@ report)
   # Ensure every requested label exists before `gh issue create --label` can
   # attach it. `security-audit` and `off-board` are the off-the-Engineering-board
   # markers (issue-templates/add-to-project.yaml excludes both) and keep their
-  # canonical styling; see Decision #66:
+  # canonical styling; see Decision qualithm/pm#705:
   # https://github.com/qualithm/pm/discussions/705. Any other label is created
   # if missing with a neutral colour. --force makes the marker creates idempotent.
   for l in $LABELS; do
