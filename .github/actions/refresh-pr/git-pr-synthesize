@@ -22,7 +22,8 @@
 # oldest-first (verbatim subjects), then harvested issue references via the
 # git-refs-harvest sibling: a closing-keyword reference becomes `Closes #N`
 # when --base is the repo's default branch; a deliberate `Refs #N` stays
-# `Refs #N` everywhere (never auto-upgraded — qualithm/pm#477).
+# `Refs #N` everywhere (never auto-upgraded — qualithm/pm#477). Last, each
+# distinct `Millwright-Run:` trailer the commits carry, verbatim.
 #
 # Title VALIDATION is the caller's job: git-feature runs git-title-validate
 # (PR titles become squash subjects), while the pr-refresh workflow keeps the
@@ -255,6 +256,14 @@ if [[ -n "$refs" ]]; then
     REFS_ONELINE+="${REFS_ONELINE:+ }$keyword $ref"
   done <<< "$refs"
   body="$body"$'\n\n'"$block"
+fi
+
+# A factory job stamps what produced it on its commits as a `Millwright-Run:`
+# trailer. Each distinct stamp in the range closes the body, oldest first, so a
+# refresh keeps it on the pull request. (See qualithm/pm#1800.)
+stamps=$(git -C "$REPO_DIR" log --reverse --format='%B' "$range" | grep '^Millwright-Run: ' | awk '!seen[$0]++' || true)
+if [[ -n "$stamps" ]]; then
+  body="${body%$'\n'}"$'\n\n'"$stamps"$'\n'
 fi
 
 if $JSON; then
