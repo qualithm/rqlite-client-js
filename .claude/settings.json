@@ -142,6 +142,8 @@
       "Bash(dx decision list *)",
       "Bash(dx decision lint)",
       "Bash(dx decision lint *)",
+      "Bash(dx decision view)",
+      "Bash(dx decision view *)",
       "Bash(dx git status)",
       "Bash(dx git status *)",
       "Bash(dx git local)",
