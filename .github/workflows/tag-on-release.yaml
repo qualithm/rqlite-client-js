@@ -11,7 +11,9 @@ name: Tag on Release
 # such commit already passed CI on its PR (CI runs on `pull_request` into
 # main/test), so gating on a main CI run is unnecessary — and impossible, since
 # CI has no `push: [main]` trigger. The version source of truth is the repo's
-# manifest (package.json / Cargo.toml / tauri.conf.json / VERSION); a push that
+# manifest (package.json, npm or mip / Cargo.toml / tauri.conf.json / project.yml /
+# library.properties / version.txt / VERSION / Directory.Build.props /
+# gradle.properties); a push that
 # does not change the version is a no-op because the tag already exists, so this
 # is safe to run on every push to main.
 #
@@ -62,27 +64,88 @@ jobs:
           # Detect ecosystem by manifest. Order matters: Tauri carries BOTH a
           # package.json and a Cargo.toml, so it must be matched first.
           #
-          # Tag prefix policy: Go MUST be v-prefixed (Go module semantics) and
-          # Tauri stays v-prefixed (its release.yaml triggers on v*.*.*). JS and
-          # Rust are BARE (X.Y.Z, no leading v).
+          # Tag prefix policy: Go MUST be v-prefixed (Go module semantics), and
+          # Tauri and SwiftUI apps stay v-prefixed (their release.yaml triggers
+          # on v*.*.*). JS, mip, Rust, .NET, Arduino, Android, ESP-IDF and Swift packages are BARE
+          # (X.Y.Z, no leading v), as SwiftPM expects. A SwiftUI app's version
+          # is MARKETING_VERSION in its XcodeGen project.yml; a Swift package has
+          # no version in Package.swift, so it keeps one in VERSION. An Arduino
+          # library is matched before package.json, which a C++ repo may carry
+          # for tooling; its idf_component.yml must mirror library.properties.
           if [[ -f src-tauri/tauri.conf.json ]]; then
             kind="tauri"
             version=$(jq -r '.version' src-tauri/tauri.conf.json)
             prefix="v"
+          elif [[ -f project.yml ]]; then
+            kind="swiftui"
+            version=$(grep -E '^[[:space:]]*MARKETING_VERSION:' project.yml | head -1 \
+              | sed -E 's/^[^:]*:[[:space:]]*["'"'"']?([^"'"'"'[:space:]#]+).*/\1/')
+            prefix="v"
+          elif [[ -f gradle.properties ]] && grep -qE '^versionName[[:space:]]*=' gradle.properties; then
+            kind="android"
+            version=$(sed -nE 's/^versionName[[:space:]]*=[[:space:]]*//p' gradle.properties | head -1 | tr -d '[:space:]')
+            prefix=""
           elif [[ -f Cargo.toml ]]; then
             kind="rust"
             version=$(grep -E '^version[[:space:]]*=' Cargo.toml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
             prefix=""
+          elif [[ -f Directory.Build.props ]] && grep -q '<Version>' Directory.Build.props; then
+            kind="dotnet"
+            version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props | head -1)
+            prefix=""
+          elif [[ -f library.properties ]]; then
+            kind="arduino"
+            version=$(sed -n 's/^version=//p' library.properties | head -1 | tr -d '[:space:]')
+            prefix=""
+            if [[ -f idf_component.yml ]]; then
+              idf=$(sed -nE 's/^version:[[:space:]]*"?([^"[:space:]#]+)"?.*/\1/p' idf_component.yml | head -1)
+              if [[ "$idf" != "$version" ]]; then
+                echo "::error file=idf_component.yml::refusing to tag: version '${idf}' must equal library.properties version '${version}'"
+                exit 1
+              fi
+            fi
+          elif [[ -f package.json ]] && jq -e 'has("urls")' package.json >/dev/null; then
+            # mip's manifest shares npm's filename. It is the one with `urls`
+            # (npm's has no such key); a Bun lockfile or an npm dependency
+            # block beside `urls` is ambiguous, so refuse it rather than guess.
+            if [[ -f bun.lock || -f bun.lockb ]] \
+              || jq -e 'has("dependencies") or has("devDependencies") or has("peerDependencies")' package.json >/dev/null; then
+              echo "::error file=package.json::package.json has mip's urls and an npm or Bun marker (bun.lock, dependencies): keep one manifest"
+              exit 1
+            fi
+            kind="micropython"
+            version=$(jq -r '.version' package.json)
+            prefix=""
+            # A dual-runtime package releases its wheel and its mip package
+            # from one tag, so the two versions must agree.
+            if [[ -f pyproject.toml ]]; then
+              # [project]'s version line; a pyproject.toml holding only dev
+              # tools has none.
+              wheel=$(awk '/^\[/ { p = ($0 == "[project]") } p && /^version[[:space:]]*=/ { sub(/^[^"]*"/, ""); sub(/".*$/, ""); print; exit }' pyproject.toml)
+              if [[ -n "$wheel" && "$wheel" != "$version" ]]; then
+                echo "::error file=pyproject.toml::pyproject.toml's version ${wheel} differs from package.json's ${version}: bump both together"
+                exit 1
+              fi
+            fi
           elif [[ -f package.json ]]; then
             kind="js"
             version=$(jq -r '.version' package.json)
+            prefix=""
+          elif [[ -f Package.swift && -f VERSION ]]; then
+            kind="swift"
+            version=$(tr -d '[:space:]' < VERSION)
+            prefix=""
+          elif [[ -f version.txt && -f CMakeLists.txt ]] && grep -q 'tools/cmake/project.cmake' CMakeLists.txt; then
+            # An ESP-IDF firmware image: IDF reads version.txt into PROJECT_VER.
+            kind="esp-idf"
+            version=$(tr -d '[:space:]' < version.txt)
             prefix=""
           elif [[ -f VERSION ]]; then
             kind="go"
             version=$(tr -d '[:space:]' < VERSION)
             prefix="v"
           else
-            echo "::error::no version source found (package.json / Cargo.toml / tauri.conf.json / VERSION)"
+            echo "::error::no version source found (package.json / Cargo.toml / tauri.conf.json / project.yml / library.properties / version.txt / VERSION / Directory.Build.props / gradle.properties)"
             exit 1
           fi
 
