@@ -296,6 +296,32 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test:integration:ci
 
+  # dx:generated-drift-begin
+  generated-drift:
+    name: Generated Drift
+    # A generated client (Decision qualithm/pm#2394) commits its generator's
+    # output. Rerunning the pinned generator on the committed spec must
+    # reproduce it exactly, so a hand edit can't pass as a generator change.
+    # Ungated by `changes`: the generator pin and config live outside the code
+    # filter. A repo without openapi-generator.yaml generates nothing and skips.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Regenerate and fail on any difference
+        run: |
+          if [ ! -f openapi-generator.yaml ]; then
+            echo "no openapi-generator.yaml: not a generated client; skipping"
+            exit 0
+          fi
+          scripts/generate
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Generated code differs from what scripts/generate writes. Run scripts/generate and commit the result; never edit generated files by hand."
+            git status --short
+            git diff --stat
+            exit 1
+          fi
+  # dx:generated-drift-end
   image-pins:
     name: Image Pins
     # Every image reference in the repo must match the vendored dx registry
@@ -329,6 +355,7 @@ jobs:
         validate-runtime,
         coverage,
         integration,
+        generated-drift,
         image-pins
       ]
     runs-on: ubuntu-24.04
