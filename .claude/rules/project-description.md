@@ -3,6 +3,9 @@ description: "How to write this repo's canonical one-liner description"
 paths:
   - "**/package.json"
   - "**/Cargo.toml"
+  - "**/pyproject.toml"
+  - "build.gradle.kts"
+  - "main/idf_component.yml"
   - "**/README.md"
   - "**/doc.go"
 ---
@@ -11,9 +14,9 @@ paths:
 
 Every repo has **one canonical description**, up to two parts:
 
-- **Part 1 — the one-liner.** One sentence reused **verbatim** by every machine surface:
-  `package.json` `description`, the `Cargo.toml` workspace `description`, the first line of Go
-  `doc.go`, and the first sentence of the `README.md` intro.
+- **Part 1 — the one-liner.** One sentence reused **verbatim** by every machine surface: each
+  manifest's description field (table below), the first line of Go `doc.go`, and the first sentence
+  of the `README.md` intro.
 - **Part 2 — the elaboration (optional).** One more sentence on the how / built-on / where-used,
   kept **only in `README.md`** (and Go `doc.go`, the pkg.go.dev surface). Never in a machine
   description field.
@@ -45,15 +48,25 @@ Rules:
 
 ## Where it's deployed (keep in sync)
 
-| Surface                          | Applies to                          |
-| -------------------------------- | ----------------------------------- |
-| `package.json` `description`     | JS/TS packages, and cloud/dx/ui/etc |
-| `Cargo.toml` workspace `package` | Rust crates                         |
-| `README.md` first sentence       | all                                 |
+| Surface                                         | Applies to                          |
+| ----------------------------------------------- | ----------------------------------- |
+| `package.json` `description`                    | JS/TS packages, and cloud/dx/ui/etc |
+| `Cargo.toml` workspace `package`                | Rust crates                         |
+| `Directory.Build.props` `<Description>`         | .NET                                |
+| `library.properties` `sentence`                 | Arduino libraries                   |
+| `pyproject.toml` `[project] description`        | Python                              |
+| root `build.gradle.kts` top-level `description` | Gradle (Kotlin, Android)            |
+| `main/idf_component.yml` `description`          | ESP-IDF firmware                    |
+| `README.md` first sentence                      | all                                 |
 
 - **Go** — the `README.md` first sentence is canonical; `doc.go` uses idiomatic `Package x …`
   phrasing, kept consistent _in meaning_ with Part 1 but may be package-scoped and carry its own
   elaboration.
+- **Swift** — `Package.swift` has no description field: the `README.md` first sentence is the only
+  surface.
+- **Gradle** — only a top-level `description = "…"` (Gradle's `Project.description`) counts; a Maven
+  POM's `description` sits inside `pom { }` and should read `project.description`.
+- A MicroPython `package.json` (mip) carries no `description`; `pyproject.toml` holds it.
 - Per-crate `Cargo.toml` `description` fields describe the **crate**, not the project, and are
   written independently. `wrangler.jsonc` has only `name`, no description.
 - GitHub "About" text should match Part 1; keep it in sync with `dx describe` (check/drift/sync),
