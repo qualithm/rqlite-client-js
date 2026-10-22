@@ -192,6 +192,9 @@ DOCKER_BOOL_FLAGS = {
 }
 QUOTED_RE = re.compile(r"""(["'`])([^"'`\s]{3,300})\1""")
 AZ_RE = re.compile(r"^[a-z]{2}-[a-z]{3}-[a-z]$")
+# A picture or video file named by an image: key (a post's attachment, say),
+# never a container.
+MEDIA_FILE_RE = re.compile(r"\.(?:png|jpe?g|gif|webp|avif|svg|mp4|webm|mov)$", re.I)
 
 
 @dataclass
@@ -448,7 +451,13 @@ def scan_commands(repo: str, rel: str, text: str, markdown: bool, known: set[str
             f = re.match(r"^\s*FROM\s+(?:--\S+\s+)*(\S+)", line, re.I)
         elif fence in ("", "yaml", "yml"):
             f = re.match(r"""^\s*(?:-\s*)?image:\s*["']?([^"'\s#]+)""", line)
-        if f and "$" not in f.group(1) and "{{" not in f.group(1) and f.group(1) != "scratch":
+        if (
+            f
+            and "$" not in f.group(1)
+            and "{{" not in f.group(1)
+            and f.group(1) != "scratch"
+            and not MEDIA_FILE_RE.search(f.group(1))
+        ):
             out.append(Reference(repo, rel, n, f.group(1)))
     return out
 
