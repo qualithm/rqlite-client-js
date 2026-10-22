@@ -80,7 +80,8 @@ def main():
     args = parser.parse_args()
 
     with open(WORKFLOW, encoding="utf-8") as file:
-        jobs = (yaml.safe_load(file) or {}).get("jobs") or {}
+        workflow = yaml.safe_load(file) or {}
+    jobs = workflow.get("jobs") or {}
     charts = None if args.all else changed_charts(args.base)
     if charts is not None and not charts:
         print(f"ci-jobs: no chart changed since {args.base}; skipping chart steps", file=sys.stderr)
@@ -95,6 +96,15 @@ def main():
             if run is None or title.startswith("Install "):
                 continue
             label = f"{name}: {title or run.strip().splitlines()[0]}"
+            # Workflow, then job, then step env, as Actions layers them. A
+            # workflow or job value that needs an expression is left out; a
+            # step's stops the step below.
+            inherited = {
+                key: str(value)
+                for scope in (workflow, jobs[name])
+                for key, value in (scope.get("env") or {}).items()
+                if "${{" not in str(value)
+            }
             env = {key: str(value) for key, value in (step.get("env") or {}).items()}
             if "if" in step or "${{" in run or any("${{" in value for value in env.values()):
                 if args.skip_ci_only:
@@ -108,7 +118,7 @@ def main():
             result = subprocess.run(
                 ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", command],
                 cwd=step.get("working-directory", "."),
-                env={**os.environ, **env},
+                env={**os.environ, **inherited, **env},
             )
             if result.returncode != 0:
                 failed.append(label)
