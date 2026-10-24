@@ -11,7 +11,7 @@ name: Tag on Release
 # such commit already passed CI on its PR (CI runs on `pull_request` into
 # main/test), so gating on a main CI run is unnecessary — and impossible, since
 # CI has no `push: [main]` trigger. The version source of truth is the repo's
-# manifest (package.json, npm or mip / Cargo.toml / tauri.conf.json / project.yml /
+# manifest (package.json, npm or mip / pyproject.toml / Cargo.toml / tauri.conf.json / project.yml /
 # library.properties / version.txt / VERSION / Directory.Build.props /
 # gradle.properties); a push that
 # does not change the version is a no-op because the tag already exists, so this
@@ -66,7 +66,7 @@ jobs:
           #
           # Tag prefix policy: Go MUST be v-prefixed (Go module semantics), and
           # Tauri and SwiftUI apps stay v-prefixed (their release.yaml triggers
-          # on v*.*.*). JS, mip, Rust, .NET, Arduino, Android, ESP-IDF and Swift packages are BARE
+          # on v*.*.*). JS, mip, Python, Rust, .NET, Arduino, Android, Kotlin, ESP-IDF and Swift packages are BARE
           # (X.Y.Z, no leading v), as SwiftPM expects. A SwiftUI app's version
           # is MARKETING_VERSION in its XcodeGen project.yml; a Swift package has
           # no version in Package.swift, so it keeps one in VERSION. An Arduino
@@ -84,6 +84,11 @@ jobs:
           elif [[ -f gradle.properties ]] && grep -qE '^versionName[[:space:]]*=' gradle.properties; then
             kind="android"
             version=$(sed -nE 's/^versionName[[:space:]]*=[[:space:]]*//p' gradle.properties | head -1 | tr -d '[:space:]')
+            prefix=""
+          elif [[ -f gradle.properties ]] && grep -qE '^version[[:space:]]*=' gradle.properties; then
+            # A Kotlin library: Gradle sets the project's version from this line.
+            kind="kotlin"
+            version=$(sed -nE 's/^version[[:space:]]*=[[:space:]]*//p' gradle.properties | head -1 | tr -d '[:space:]')
             prefix=""
           elif [[ -f Cargo.toml ]]; then
             kind="rust"
@@ -127,6 +132,12 @@ jobs:
                 exit 1
               fi
             fi
+          elif [[ -f pyproject.toml ]] && awk '/^\[/ { p = ($0 == "[project]") } p && /^version[[:space:]]*=/ { found = 1 } END { exit !found }' pyproject.toml; then
+            # A CPython package: [project]'s version line. Matched after mip,
+            # so a dual-runtime package keeps its two-file check above.
+            kind="python"
+            version=$(awk '/^\[/ { p = ($0 == "[project]") } p && /^version[[:space:]]*=/ { sub(/^[^"]*"/, ""); sub(/".*$/, ""); print; exit }' pyproject.toml)
+            prefix=""
           elif [[ -f package.json ]]; then
             kind="js"
             version=$(jq -r '.version' package.json)
@@ -145,7 +156,7 @@ jobs:
             version=$(tr -d '[:space:]' < VERSION)
             prefix="v"
           else
-            echo "::error::no version source found (package.json / Cargo.toml / tauri.conf.json / project.yml / library.properties / version.txt / VERSION / Directory.Build.props / gradle.properties)"
+            echo "::error::no version source found (package.json / pyproject.toml / Cargo.toml / tauri.conf.json / project.yml / library.properties / version.txt / VERSION / Directory.Build.props / gradle.properties)"
             exit 1
           fi
 
