@@ -322,6 +322,26 @@ jobs:
             exit 1
           fi
   # dx:generated-drift-end
+  docs:
+    name: Docs
+    needs: changes
+    # Full tier: the API docs build only on the main hop, where a release is
+    # cut from. A broken doc comment (an unknown tag, a bad link, a
+    # referenced type left unexported) fails it; a missing one doesn't.
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.is-main == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.4"
+      - run: bun install --frozen-lockfile
+      - name: Build the API docs (typedoc)
+        run: >-
+          bun run docs --treatWarningsAsErrors --validation.notDocumented false --out
+          "$RUNNER_TEMP/docs"
+
   image-pins:
     name: Image Pins
     # Every image reference in the repo must match the vendored dx registry
@@ -356,6 +376,7 @@ jobs:
         coverage,
         integration,
         generated-drift,
+        docs,
         image-pins
       ]
     runs-on: ubuntu-24.04
