@@ -18,10 +18,22 @@ the exit status is 1 when any failed.
 import argparse
 import os
 import re
+import shutil
 import subprocess
 import sys
 
-import yaml
+try:
+    import yaml
+except ImportError:
+    # Stock macOS python3 has no PyYAML. Rerun under uv, which supplies it.
+    if os.environ.get("CI_JOBS_UV") is None and shutil.which("uv") is not None:
+        os.environ["CI_JOBS_UV"] = "1"
+        sys.exit(
+            subprocess.run(
+                ["uv", "run", "--no-project", "--with", "pyyaml==6.0.3", "python3", *sys.argv]
+            ).returncode
+        )
+    sys.exit("ci-jobs: needs PyYAML; install uv (https://docs.astral.sh/uv/) or run `pip install pyyaml`")
 
 WORKFLOW = ".github/workflows/ci.yaml"
 SELF = ".claude/checks/ci-jobs.py"
