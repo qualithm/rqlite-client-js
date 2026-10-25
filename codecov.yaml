@@ -1,3 +1,5 @@
+# Synced from dx by `dx baseline sync`; edits above the dx:repo-begin marker are overwritten.
+# Repo-only rules go between `# dx:repo-begin` and `# dx:repo-end` at the end of the file.
 coverage:
   status:
     project:
@@ -8,7 +10,16 @@ coverage:
       default:
         target: 80%
         threshold: 1%
+
 ignore:
   - "src/__tests__/**"
   - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "examples/**"
+  # Synced code is covered in its source repo.
+  - "src/_shared/**"
+  - "src/_ui/**"
+
+  # dx:repo-begin
   - "**/*.bench.ts"
+# dx:repo-end
