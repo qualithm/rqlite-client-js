@@ -1,0 +1,18 @@
+# Synced from dx by `dx baseline sync`; edits above the dx:repo-begin marker are overwritten.
+# Repo-only rules go between `# dx:repo-begin` and `# dx:repo-end` at the end of the file.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[{*.go,go.mod,go.sum,Makefile,*.mk}]
+indent_style = tab
+indent_size = 4
+
+[*.{py,pyi,kt,kts,cs,c}]
+indent_size = 4
