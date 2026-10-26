@@ -346,8 +346,8 @@ jobs:
     name: Image Pins
     # Every image reference in the repo must match the vendored dx registry
     # (Decision qualithm/pm#744, amendment 2026-10-03). Runs on every PR, docs
-    # included: a README can carry an image reference too. Repos not enrolled
-    # in dx images-sync.config carry no vendored registry and skip.
+    # included: a README can carry an image reference too. A repo with no
+    # vendored registry references no container image and skips.
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -355,7 +355,7 @@ jobs:
       - name: Check image pins against the vendored dx registry
         run: |
           if [ ! -f .github/images/images.config ]; then
-            echo "not enrolled in dx images-sync.config; skipping"
+            echo "no vendored registry: repo references no container image; skipping"
             exit 0
           fi
           .github/images/images check --config .github/images/images.config .
