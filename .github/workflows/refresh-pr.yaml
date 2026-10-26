@@ -5,9 +5,9 @@ name: Refresh PR
 
 # Regenerates an open feature PR's title/body from the live commit range on
 # every push, so the reviewer-facing page never goes stale between `dx git
-# feature` runs (qualithm/pm#418, Decision qualithm/pm#767). The synthesis is
-# the vendored .github/actions/refresh-pr/git-pr-synthesize — the same code
-# `dx git feature` runs locally — so both paths produce identical output.
+# feature` runs (qualithm/pm#418, Decision qualithm/pm#767). The vendored
+# .github/actions/refresh-pr/refresh-pr.js is dx's own synthesis, bundled, so
+# the workflow writes the same title and body `dx git feature` does.
 on:
   pull_request:
     # `edited` is deliberately absent: this workflow's own `gh pr edit` fires
@@ -37,23 +37,24 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      - name: Skip PRs that predate the vendored scripts
+      - name: Skip PRs that predate the vendored action
         id: vendored
         # The checkout is the PR HEAD: a branch opened before this workflow was
-        # synced doesn't carry the scripts, and failing there would read as the
+        # synced doesn't carry the action, and failing there would read as the
         # PR's own CI failing. Skip; the first push after rebasing refreshes it.
         run:
-          test -f .github/actions/refresh-pr/refresh.sh && echo "present=true" >> "$GITHUB_OUTPUT"
-          || echo "present=false" >> "$GITHUB_OUTPUT"
+          test -f .github/actions/refresh-pr/refresh-pr.js && echo "present=true" >>
+          "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
 
-      - name: Install zsh
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         if: steps.vendored.outputs.present == 'true'
-        run: sudo apt-get install -y zsh
+        with:
+          bun-version: "1.4.4"
 
       - name: Refresh the PR title/body
         if: steps.vendored.outputs.present == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run:
-          .github/actions/refresh-pr/refresh.sh "${{ github.base_ref }}" "${{
-          github.event.pull_request.number }}"
+          BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: bun .github/actions/refresh-pr/refresh-pr.js "$BASE_REF" "$PR_NUMBER"
