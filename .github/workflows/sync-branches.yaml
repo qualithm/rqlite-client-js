@@ -77,10 +77,29 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
+      # push-branch retries a push the remote rejects transiently (a GitHub-side
+      # error, not a lease failure), so one bad push no longer leaves the
+      # branches unsynced until the next promotion.
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p "$RUNNER_TEMP/bin"
+          cat > "$RUNNER_TEMP/bin/push-branch" <<'EOF'
+          #!/usr/bin/env bash
+          set -uo pipefail
+          for attempt in 1 2 3 4; do
+            git push --force-with-lease origin "$1" && exit 0
+            if [ "$attempt" -lt 4 ]; then
+              echo "::warning::push of $1 failed (attempt $attempt of 4), retrying"
+              sleep $((attempt * 10))
+            fi
+          done
+          echo "::error::push of $1 failed after 4 attempts"
+          exit 1
+          EOF
+          chmod +x "$RUNNER_TEMP/bin/push-branch"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       # Keep test branch ancestry aligned with main to avoid cumulative merge commits.
       # A push to main is a test → main promotion that just merged, so test
@@ -112,7 +131,7 @@ jobs:
             exit 0
           fi
           git reset --hard origin/main
-          git push --force-with-lease origin test
+          push-branch test
           echo "test reset onto main"
           echo "aligned=true" >> "$GITHUB_OUTPUT"
 
@@ -133,7 +152,7 @@ jobs:
               echo "development already aligned with main — nothing to push"
             else
               git reset --hard origin/main
-              git push --force-with-lease origin development
+              push-branch development
               echo "development reset onto main (identical trees)"
             fi
           else
@@ -142,7 +161,7 @@ jobs:
               if [ "$before" = "$(git rev-parse development)" ]; then
                 echo "development already aligned with main — nothing to push"
               else
-                git push --force-with-lease origin development
+                push-branch development
                 echo "development realigned onto main"
               fi
             else
@@ -174,7 +193,7 @@ jobs:
               echo "development already aligned with test — nothing to push"
             else
               git reset --hard origin/test
-              git push --force-with-lease origin development
+              push-branch development
               echo "development reset onto test (identical trees)"
             fi
           else
@@ -183,7 +202,7 @@ jobs:
               if [ "$before" = "$(git rev-parse development)" ]; then
                 echo "development already aligned with test — nothing to push"
               else
-                git push --force-with-lease origin development
+                push-branch development
                 echo "development realigned onto test"
               fi
             else
