@@ -275,9 +275,22 @@ def walk(node: object):
             yield n
 
 
-def line_of(text: str, needle: str, after: int = 0) -> int:
-    i = text.find(needle)
-    return text.count("\n", 0, i) + 1 if i >= 0 else after
+def line_finder(text: str):
+    """Lines of successive occurrences in one file: each call for the same text finds the next one."""
+    nxt: dict[str, int] = {}
+
+    def line_of(needle: str) -> int:
+        start = nxt.get(needle, 0)
+        i = text.find(needle, start)
+        if i < 0 and start > 0:
+            # More references than occurrences (a value read twice): reuse the last one.
+            i = text.rfind(needle)
+        if i < 0:
+            return 0
+        nxt[needle] = i + len(needle)
+        return text.count("\n", 0, i) + 1
+
+    return line_of
 
 
 def repo_files(root: str) -> list[str]:
@@ -316,13 +329,30 @@ def docker_cmd_image(args: str) -> str | None:
     return None
 
 
+# A base label names its base by tag, so it is held to its entry's tag, not its digest.
+BASE_LABEL = "base label"
+BASE_LABEL_KEY = "org.opencontainers.image.base.name="
+BASE_LABEL_RE = re.compile(r"""(?:^|\s)org\.opencontainers\.image\.base\.name=("[^"]*"|'[^']*'|\S+)""")
+
+
+def label_line(physical: list[str], start: int) -> int:
+    """The physical line, from a logical line's first, that holds the base label."""
+    for i in range(start - 1, len(physical)):
+        if BASE_LABEL_KEY in physical[i]:
+            return i + 1
+        if not physical[i].rstrip().endswith("\\"):
+            break
+    return start
+
+
 def scan_dockerfile(repo: str, rel: str, text: str) -> list[Reference]:
     out = []
     env: dict[str, str] = {}
     stages: set[str] = set()
     logical: list[tuple[int, str]] = []
     pending, start = "", 0
-    for n, raw in enumerate(text.splitlines(), 1):
+    physical = text.splitlines()
+    for n, raw in enumerate(physical, 1):
         if not pending:
             start = n
         stripped = raw.rstrip()
@@ -357,29 +387,38 @@ def scan_dockerfile(repo: str, rel: str, text: str) -> list[Reference]:
                     continue
                 image = substitute(src, env)
                 out.append(Reference(repo, rel, n, image if image is not None else src, "" if image else "unresolved"))
+        elif inst == "LABEL":
+            m = BASE_LABEL_RE.search(line)
+            if m:
+                raw = m[1][1:-1] if m[1][:1] in ("'", '"') else m[1]
+                image = substitute(raw, env)
+                at = label_line(physical, n)
+                out.append(Reference(repo, rel, at, raw, "unresolved") if image is None else Reference(repo, rel, at, image, BASE_LABEL))
     return out
 
 
 def scan_compose(repo: str, rel: str, path: str, text: str) -> list[Reference]:
     out = []
+    line_of = line_finder(text)
     for doc in yaml_docs(path):
         for svc in ((doc or {}).get("services") or {}).values():
             if not isinstance(svc, dict) or "build" in svc or not isinstance(svc.get("image"), str):
                 continue
             raw = svc["image"]
             image = substitute(raw, {})
-            out.append(Reference(repo, rel, line_of(text, raw), image if image is not None else raw, "" if image else "unresolved"))
+            out.append(Reference(repo, rel, line_of(raw), image if image is not None else raw, "" if image else "unresolved"))
     return out
 
 
 def scan_workflow(repo: str, rel: str, path: str, text: str) -> list[Reference]:
     out = []
+    line_of = line_finder(text)
 
     def add(raw: str) -> None:
         if "${{" in raw:
-            out.append(Reference(repo, rel, line_of(text, raw), raw, "unresolved"))
+            out.append(Reference(repo, rel, line_of(raw), raw, "unresolved"))
         else:
-            out.append(Reference(repo, rel, line_of(text, raw), raw))
+            out.append(Reference(repo, rel, line_of(raw), raw))
 
     for doc in yaml_docs(path):
         doc = doc or {}
@@ -535,6 +574,7 @@ def scan_chart(repo: str, root: str, chart_rel: str, known: set[str]) -> tuple[l
             continue
         path = os.path.join(chart, v)
         text = read_text(path) or ""
+        line_of = line_finder(text)
         for doc in yaml_docs(path):
             for node in walk(doc):
                 if not isinstance(node, dict):
@@ -549,7 +589,7 @@ def scan_chart(repo: str, root: str, chart_rel: str, known: set[str]) -> tuple[l
                 name = f"{registry}/{repo_name}" if isinstance(registry, str) and registry else repo_name
                 image = f"{name}:{tag}" + (f"@{digest}" if isinstance(digest, str) and digest else "")
                 if image not in refs:
-                    refs[image] = Reference(repo, f"{chart_rel}/{v}", line_of(text, f"{tag}"), image, "values pin")
+                    refs[image] = Reference(repo, f"{chart_rel}/{v}", line_of(f"{tag}"), image, "values pin")
     return list(refs.values()), findings
 
 
@@ -621,6 +661,11 @@ def judge(ref: Reference, entries: dict[tuple[str, str], Ref], names: set[str]) 
     if entry is None:
         hint = "; the registry has other flavors of it" if name in names else ""
         return Finding("error", "unregistered", where, f"{ref.found}: no registry entry{hint}")
+    if ref.context == BASE_LABEL:
+        if tag == entry.tag and (not digest or digest == entry.digest):
+            return None
+        expected = f"{m['name']}:{entry.tag}" + (f"@{entry.digest}" if digest else "")
+        return Finding("error", "mismatch", where, f"{ref.found}: expected {expected}")
     if (tag, digest) == (entry.tag, entry.digest):
         return None
     if tag == entry.tag and not digest:
