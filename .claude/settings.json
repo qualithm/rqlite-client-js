@@ -214,6 +214,8 @@
       "Bash(dx describe check *)",
       "Bash(dx coverage patch)",
       "Bash(dx coverage patch *)",
+      "Bash(dx deps alerts)",
+      "Bash(dx deps alerts *)",
       "Bash(dx deps overrides)",
       "Bash(dx deps overrides *)",
       "Bash(dx env local)",
