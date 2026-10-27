@@ -1,5 +1,6 @@
 // @bun
 // Generated from dx src/actions/refreshPr.ts by `bun run build:refresh-pr`. Do not edit.
+/* eslint-disable */
 async function exec(argv, options = {}) {
   const child = Bun.spawn([...argv], {
     cwd: options.cwd,
