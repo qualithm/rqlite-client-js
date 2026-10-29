@@ -540,11 +540,42 @@ async function refreshPr(options) {
   }
   return { changed, message };
 }
+async function checkPrTitle(options) {
+  const { repo, pr, client } = options;
+  const current = await client.request("GET", `repos/${repo}/pulls/${String(pr)}`);
+  const title = current.title ?? "";
+  const problem = titleProblem(title);
+  if (problem === undefined) {
+    return { ok: true, message: `PR #${String(pr)} title is a Conventional Commit header` };
+  }
+  return {
+    ok: false,
+    message: [
+      `PR #${String(pr)} title "${title}" is not a Conventional Commit header (${problem}).`,
+      "It becomes the squash commit's subject: retitle the PR, or for a single-commit branch amend",
+      "the commit (git commit --amend) and force-push so refresh-pr retitles it."
+    ].join(`
+`)
+  };
+}
 
 async function run(argv, env) {
+  const repo = env.GITHUB_REPOSITORY ?? "";
+  if (argv.at(0) === "--check-title") {
+    const number = argv.at(1) ?? "";
+    if (!/^\d+$/.test(number) || repo === "") {
+      process.stderr.write(`usage: refresh-pr.js --check-title <pr-number> (GITHUB_REPOSITORY set)
+`);
+      return 2;
+    }
+    const client = createGitHubClient({ token: await resolveToken(env) });
+    const check = await checkPrTitle({ repo, pr: Number(number), client });
+    process.stdout.write(`${check.message}
+`);
+    return check.ok ? 0 : 1;
+  }
   const base = argv.at(0) ?? "";
   const pr = argv.at(1) ?? "";
-  const repo = env.GITHUB_REPOSITORY ?? "";
   if (base === "" || !/^\d+$/.test(pr) || repo === "") {
     process.stderr.write(`usage: refresh-pr.js <base-branch> <pr-number> (GITHUB_REPOSITORY set)
 `);
