@@ -232,6 +232,21 @@ var CONVENTIONAL_TYPES = [
   "revert"
 ];
 var HEADER = new RegExp(`^(${CONVENTIONAL_TYPES.join("|")})(\\([a-z0-9._/-]+\\))?!?: .+`);
+function titleProblem(title) {
+  if (!HEADER.test(title)) {
+    return `not a 'type(scope): subject' header (type must be one of: ${CONVENTIONAL_TYPES.join(", ")})`;
+  }
+  if (/\((commit|chore|fix|update|misc)\)/.test(title)) {
+    return "scope names the action, not the area affected \u2014 drop it or name the module";
+  }
+  if (/: [A-Z]/.test(title)) {
+    return "subject must be lowercase";
+  }
+  if (title.endsWith(".")) {
+    return "subject must not end in a period";
+  }
+  return;
+}
 var KEYWORD_REF = /(close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)[:\s]+([A-Za-z0-9._/-]+#[0-9]+|#[0-9]+)/gi;
 var CLOSING_KEYWORD = /^(close|fix|resolve)/i;
 function classifyRefs(texts) {
@@ -481,7 +496,7 @@ ${trailers.map((line) => `${line}
 ${stamps.map((line) => `${line}
 `).join("")}`;
   }
-  return { ok: true, title, commits, body, refsOneline };
+  return { ok: true, title, commits, body, refsOneline, subject };
 }
 
 function same(a, b) {
@@ -502,20 +517,28 @@ async function refreshPr(options) {
     api: repoApi(github, info?.fullName ?? repo)
   };
   let synthesis = await synthesizePr(inputs);
-  if (!synthesis.ok && synthesis.reason === "needs-title") {
+  const invalidSubject = synthesis.ok && synthesis.commits === 1 && titleProblem(synthesis.subject) !== undefined;
+  if (!synthesis.ok && synthesis.reason === "needs-title" || invalidSubject) {
     synthesis = await synthesizePr({ ...inputs, title: currentTitle });
   }
   if (!synthesis.ok) {
     throw new DxError("error", `no commits ahead of origin/${base} \u2014 nothing to synthesize`);
   }
+  let message;
+  let changed = false;
   if (synthesis.title === currentTitle && same(synthesis.body, currentBody)) {
-    return { changed: false, message: `PR #${String(pr)} title/body already current` };
+    message = `PR #${String(pr)} title/body already current`;
+  } else {
+    await client.request("PATCH", path, { title: synthesis.title, body: synthesis.body });
+    changed = true;
+    message = `PR #${String(pr)} title/body refreshed from origin/${base}..HEAD`;
   }
-  await client.request("PATCH", path, { title: synthesis.title, body: synthesis.body });
-  return {
-    changed: true,
-    message: `PR #${String(pr)} title/body refreshed from origin/${base}..HEAD`
-  };
+  const problem = titleProblem(synthesis.title);
+  if (problem !== undefined) {
+    const fix = invalidSubject ? `the commit subject "${synthesis.subject}" is not one either \u2014 amend it (git commit --amend) and force-push` : "retitle the PR";
+    throw new DxError("error", `${message}, but its title "${synthesis.title}" is not a Conventional Commit header (${problem}); ${fix}`);
+  }
+  return { changed, message };
 }
 
 async function run(argv, env) {
