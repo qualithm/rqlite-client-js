@@ -5,7 +5,7 @@ set -euo pipefail
 
 : "${MODE:?}" "${TITLE:?}"
 
-# Issues file on the org's private tracker (Decision pm#2); SOURCE_REPO records where
+# Issues file on the org's private tracker; SOURCE_REPO records where
 # the failing scan ran. Titles carry the repo name, so dedup is unaffected by the move.
 REPO="qualithm/pm"
 SOURCE_REPO="${SOURCE_REPO:?}"
@@ -22,19 +22,18 @@ report)
   # Ensure every requested label exists before `gh issue create --label` can
   # attach it. `security-audit` and `off-board` are the off-the-Engineering-board
   # markers (issue-templates/add-to-project.yaml excludes both) and keep their
-  # canonical styling; see Decision qualithm/pm#705:
-  # https://github.com/qualithm/pm/discussions/705. Any other label is created
-  # if missing with a neutral colour. --force makes the marker creates idempotent.
+  # canonical styling. Any other label is created if missing with a neutral
+  # colour. --force makes the marker creates idempotent.
   for l in $LABELS; do
     case "$l" in
     security-audit)
       gh label create security-audit --repo "$REPO" --color "b60205" --force \
-        --description "Automated scan failure filed by report-scan-failure; kept off the Engineering board (Decision pm#2)" \
+        --description "Automated scan failure filed by report-scan-failure; kept off the Engineering board" \
         >/dev/null
       ;;
     off-board)
       gh label create off-board --repo "$REPO" --color "5319e7" --force \
-        --description "Automation-filed issue kept off the Engineering board (Decision pm#2)" \
+        --description "Automation-filed issue kept off the Engineering board" \
         >/dev/null
       ;;
     *)
