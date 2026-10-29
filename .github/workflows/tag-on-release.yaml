@@ -11,7 +11,7 @@ name: Tag on Release
 # such commit already passed CI on its PR (CI runs on `pull_request` into
 # main/test), so gating on a main CI run is unnecessary — and impossible, since
 # CI has no `push: [main]` trigger. The version source of truth is the repo's
-# manifest (package.json, npm or mip / pyproject.toml / Cargo.toml / tauri.conf.json / project.yml /
+# manifest (package.json, npm or mip / pyproject.toml / Cargo.toml / project.yml /
 # library.properties / version.txt / VERSION / Directory.Build.props /
 # gradle.properties); a push that
 # does not change the version is a no-op because the tag already exists, so this
@@ -61,22 +61,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Detect ecosystem by manifest. Order matters: Tauri carries BOTH a
-          # package.json and a Cargo.toml, so it must be matched first.
+          # Detect ecosystem by manifest. Order matters where a repo carries
+          # more than one manifest.
           #
           # Tag prefix policy: Go MUST be v-prefixed (Go module semantics), and
-          # Tauri and SwiftUI apps stay v-prefixed (their release.yaml triggers
-          # on v*.*.*). JS, mip, Python, Rust, .NET, Arduino, Android, Kotlin, ESP-IDF and Swift packages are BARE
+          # SwiftUI apps stay v-prefixed (their release.yaml triggers on
+          # v*.*.*). JS, mip, Python, Rust, .NET, Arduino, Android, Kotlin, ESP-IDF and Swift packages are BARE
           # (X.Y.Z, no leading v), as SwiftPM expects. A SwiftUI app's version
           # is MARKETING_VERSION in its XcodeGen project.yml; a Swift package has
           # no version in Package.swift, so it keeps one in VERSION. An Arduino
           # library is matched before package.json, which a C++ repo may carry
           # for tooling; its idf_component.yml must mirror library.properties.
-          if [[ -f src-tauri/tauri.conf.json ]]; then
-            kind="tauri"
-            version=$(jq -r '.version' src-tauri/tauri.conf.json)
-            prefix="v"
-          elif [[ -f project.yml ]]; then
+          if [[ -f project.yml ]]; then
             kind="swiftui"
             version=$(grep -E '^[[:space:]]*MARKETING_VERSION:' project.yml | head -1 \
               | sed -E 's/^[^:]*:[[:space:]]*["'"'"']?([^"'"'"'[:space:]#]+).*/\1/')
@@ -156,7 +152,7 @@ jobs:
             version=$(tr -d '[:space:]' < VERSION)
             prefix="v"
           else
-            echo "::error::no version source found (package.json / pyproject.toml / Cargo.toml / tauri.conf.json / project.yml / library.properties / version.txt / VERSION / Directory.Build.props / gradle.properties)"
+            echo "::error::no version source found (package.json / pyproject.toml / Cargo.toml / project.yml / library.properties / version.txt / VERSION / Directory.Build.props / gradle.properties)"
             exit 1
           fi
 
