@@ -34,6 +34,75 @@ function describeError(error) {
   return { code: "error", message: String(error) };
 }
 
+var CITATION_EXEMPT = [
+  { repo: "dx", path: "src/__tests__/unit/chat.test.ts" },
+  { repo: "dx", path: "src/__tests__/unit/decision.test.ts" },
+  { repo: "dx", path: "src/__tests__/unit/decisionCitations.test.ts" },
+  { repo: "dx", path: "src/__tests__/unit/project.test.ts" },
+  { repo: "dx", path: "src/__tests__/unit/triage.test.ts" },
+  { repo: "gantry", path: "src/__tests__/unit/dashboardView.test.tsx" },
+  { repo: "mill", path: "src/__tests__/unit/answer.test.ts" },
+  { repo: "mill", path: "src/__tests__/unit/githubContext.test.ts" },
+  { repo: "mill", path: "src/__tests__/unit/githubDiscussion.test.ts" },
+  { repo: "mill", path: "src/__tests__/unit/snapshot.test.ts" },
+  { repo: "pm", path: "migrate/decisions-state.json" },
+  { repo: "platform", path: "src/migration/" }
+];
+function isCitationExempt(repo, path) {
+  return CITATION_EXEMPT.some((e) => e.repo === repo && (e.path.endsWith("/") ? path.startsWith(e.path) : path === e.path));
+}
+var NAMED = /\bDecisions?\b[^.\n]{0,40}#\d+/i;
+var BARE = /\bDecisions? +\d+\b/i;
+var DISCUSSION_URL = /github\.com\/qualithm\/pm\/discussions\/\d+/;
+var PM_REF = /\b(?:qualithm\/)?pm#(\d+)\b/g;
+function citesDecision(line, decisions) {
+  if (NAMED.test(line) || BARE.test(line) || DISCUSSION_URL.test(line)) {
+    return true;
+  }
+  for (const match of line.matchAll(PM_REF)) {
+    if (decisions.has(Number(match[1]))) {
+      return true;
+    }
+  }
+  return false;
+}
+function addedCitations(repo, diff, decisions = new Set) {
+  const citations = [];
+  let path = null;
+  let line = 0;
+  for (const raw of diff.split(`
+`)) {
+    if (raw.startsWith("+++ ")) {
+      path = raw === "+++ /dev/null" ? null : raw.slice(4).replace(/^b\//, "");
+      continue;
+    }
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
+    if (hunk !== null) {
+      line = Number(hunk[1]);
+      continue;
+    }
+    if (raw.startsWith("+") && path !== null) {
+      const text = raw.slice(1);
+      if (!isCitationExempt(repo, path) && citesDecision(text, decisions)) {
+        citations.push({ repo, path, line, text: text.trim() });
+      }
+      line += 1;
+    }
+  }
+  return citations;
+}
+async function scanAddedCitations(repo, dir, base) {
+  const mergeBase = await exec(["git", "merge-base", `origin/${base}`, "HEAD"], { cwd: dir });
+  if (mergeBase.exitCode !== 0) {
+    throw new DxError("error", `no merge base with origin/${base}: ${mergeBase.stderr.trim()}`);
+  }
+  const diff = await exec(["git", "diff", "--no-color", "--no-ext-diff", "--unified=0", mergeBase.stdout.trim(), "HEAD"], { cwd: dir });
+  if (diff.exitCode !== 0) {
+    throw new DxError("error", `git diff failed: ${diff.stderr.trim()}`);
+  }
+  return addedCitations(repo, diff.stdout);
+}
+
 var API_URL = "https://api.github.com";
 var MAX_ATTEMPTS = 4;
 var MAX_RATE_LIMIT_WAIT_MS = 60000;
@@ -559,6 +628,23 @@ async function checkPrTitle(options) {
   };
 }
 
+async function checkCitations(base, repo, env) {
+  if (base === "" || repo === "") {
+    process.stderr.write(`usage: refresh-pr.js --check-citations <base-branch> (GITHUB_REPOSITORY set)
+`);
+    return 2;
+  }
+  const name = repo.split("/").at(-1) ?? repo;
+  const citations = await scanAddedCitations(name, env.GITHUB_WORKSPACE ?? process.cwd(), base);
+  for (const c of citations) {
+    process.stdout.write(`::error file=${c.path},line=${String(c.line)}::cites a Decision; state the rule in words or point at code
+`);
+  }
+  process.stdout.write(citations.length === 0 ? `no Decision citations in the added lines
+` : `${String(citations.length)} added line(s) cite a Decision; only issues may cite one
+`);
+  return citations.length === 0 ? 0 : 1;
+}
 async function run(argv, env) {
   const repo = env.GITHUB_REPOSITORY ?? "";
   if (argv.at(0) === "--check-title") {
@@ -573,6 +659,9 @@ async function run(argv, env) {
     process.stdout.write(`${check.message}
 `);
     return check.ok ? 0 : 1;
+  }
+  if (argv.at(0) === "--check-citations") {
+    return checkCitations(argv.at(1) ?? "", repo, env);
   }
   const base = argv.at(0) ?? "";
   const pr = argv.at(1) ?? "";
