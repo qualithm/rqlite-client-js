@@ -45,11 +45,10 @@ var CITATION_EXEMPT = [
   { repo: "mill", path: "src/__tests__/unit/githubContext.test.ts" },
   { repo: "mill", path: "src/__tests__/unit/githubDiscussion.test.ts" },
   { repo: "mill", path: "src/__tests__/unit/snapshot.test.ts" },
-  { repo: "pm", path: "migrate/decisions-state.json" },
-  { repo: "platform", path: "src/migration/" }
+  { repo: "pm", path: "migrate/decisions-state.json" }
 ];
 function isCitationExempt(repo, path) {
-  return CITATION_EXEMPT.some((e) => e.repo === repo && (e.path.endsWith("/") ? path.startsWith(e.path) : path === e.path));
+  return CITATION_EXEMPT.some((e) => e.repo === repo && e.path === path);
 }
 var NAMED = /\bDecisions?\b[^.\n]{0,40}#\d+/i;
 var BARE = /\bDecisions? +\d+\b/i;
