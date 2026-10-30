@@ -639,7 +639,14 @@ def scan_repo(repo: str, root: str, known: set[str]) -> tuple[list[Reference], l
     return refs, findings
 
 
+# A dx sync token, such as __DX_IDF_IMAGE__, in a dx template: the sync writes the pinned image in
+# its place, so the token itself is not a reference to hold to the registry.
+SYNC_TOKEN_RE = re.compile(r"^__DX_[A-Z0-9_]+__$")
+
+
 def judge(ref: Reference, entries: dict[tuple[str, str], Ref], names: set[str]) -> Finding | None:
+    if SYNC_TOKEN_RE.match(ref.found):
+        return None
     where = f"{ref.repo}/{ref.path}" + (f":{ref.line}" if ref.line else "") + (f" {ref.context}" if ref.context and ref.context != "unresolved" else "")
     if ref.context == "unresolved":
         return Finding("error", "unresolved", where, f"{ref.found}: a variable the check cannot resolve")
