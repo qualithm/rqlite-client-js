@@ -4,7 +4,7 @@
 
 dx images sync vendors this check and the registry (images.config, rendered from
 dx/images.json) into .github/images/ of every enrolled repo, where the CI Image
-Pins job runs it (Decision qualithm/pm#744, amendment 2026-10-03). dx itself runs
+Pins job runs it. dx itself runs
 the TypeScript port in src/lib/imageScan.ts; a unit test holds the two to the same
 findings.
 
