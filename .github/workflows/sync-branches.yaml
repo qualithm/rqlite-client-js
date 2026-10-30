@@ -99,6 +99,64 @@ jobs:
           exit 1
           EOF
           chmod +x "$RUNNER_TEMP/bin/push-branch"
+          # realign-development TARGET rebases development onto origin/TARGET
+          # after a squash promotion. Shared by both realign steps below.
+          cat > "$RUNNER_TEMP/bin/realign-development" <<'EOF'
+          #!/usr/bin/env bash
+          set -uo pipefail
+          target="$1"
+          upstream="origin/$target"
+          git checkout -q development || exit 1
+          # A squash merge collapses a PR's N commits into one, so the promoted
+          # commits are NOT patch-equivalent to any single development commit and a
+          # plain rebase cannot drop them — it conflicts. When the squash has
+          # drained development (its tree now matches the target) adopt the
+          # target's clean linear history outright.
+          if git diff --quiet "$upstream" development; then
+            if [ "$(git rev-parse development)" = "$(git rev-parse "$upstream")" ]; then
+              echo "development already aligned with $target — nothing to push"
+            else
+              git reset -q --hard "$upstream"
+              push-branch development || exit 1
+              echo "development reset onto $target (identical trees)"
+            fi
+            exit 0
+          fi
+          before=$(git rev-parse development)
+          before_tree=$(git rev-parse "development^{tree}")
+          # Commits landed after the promotion. The newest development commit whose
+          # tree equals the target's is the tip of what the squash promoted, so
+          # replay only the commits after it. The result must keep development's
+          # tree; anything else falls through to the plain rebase below.
+          promoted=$(git log --format='%H %T' "$upstream..development" \
+            | awk -v tree="$(git rev-parse "$upstream^{tree}")" '$2 == tree { print $1; exit }')
+          if [ -n "$promoted" ]; then
+            if git rebase -q --onto "$upstream" "$promoted" development \
+              && [ "$(git rev-parse "development^{tree}")" = "$before_tree" ]; then
+              push-branch development || exit 1
+              echo "development realigned onto $target, replaying the commits after the promoted $(git rev-parse --short "$promoted")"
+              exit 0
+            fi
+            git rebase --abort 2>/dev/null
+            git checkout -q development
+            git reset -q --hard "$before"
+            echo "replaying the commits after the promoted $(git rev-parse --short "$promoted") did not keep development's tree — trying a plain rebase"
+          fi
+          if git rebase -q "$upstream"; then
+            if [ "$before" = "$(git rev-parse development)" ]; then
+              echo "development already aligned with $target — nothing to push"
+            else
+              push-branch development || exit 1
+              echo "development realigned onto $target"
+            fi
+            exit 0
+          fi
+          conflicts=$(git diff --name-only --diff-filter=U | paste -sd ' ' -)
+          git rebase --abort
+          echo "::error::${GITHUB_REPOSITORY:-this repository}: development conflicts with $target in ${conflicts:-(no conflicting files reported)} — rebase aborted, development left untouched for manual resolution"
+          exit 1
+          EOF
+          chmod +x "$RUNNER_TEMP/bin/realign-development"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       # Keep test branch ancestry aligned with main to avoid cumulative merge commits.
@@ -137,81 +195,18 @@ jobs:
 
       - name: Realign development onto main
         if: github.ref_name == 'main' && steps.reset-test.outputs.aligned == 'true'
-        run: |
-          git checkout development
-          # A squash merge collapses a PR's N commits into one, so the promoted
-          # commits are NOT patch-equivalent to any single development commit and a
-          # plain rebase cannot drop them — it conflicts, aborts, and leaves
-          # development to accumulate. When the squash has drained development (its
-          # tree now matches main) adopt main's clean linear history outright; only
-          # genuinely-unpromoted work (differing trees) is preserved via rebase, and
-          # because the drained case keeps development linear that rebase no longer
-          # trips over stale merge commits.
-          if git diff --quiet origin/main development; then
-            if [ "$(git rev-parse development)" = "$(git rev-parse origin/main)" ]; then
-              echo "development already aligned with main — nothing to push"
-            else
-              git reset --hard origin/main
-              push-branch development
-              echo "development reset onto main (identical trees)"
-            fi
-          else
-            before=$(git rev-parse development)
-            if git rebase origin/main; then
-              if [ "$before" = "$(git rev-parse development)" ]; then
-                echo "development already aligned with main — nothing to push"
-              else
-                push-branch development
-                echo "development realigned onto main"
-              fi
-            else
-              conflicts=$(git diff --name-only --diff-filter=U | paste -sd ' ' -)
-              git rebase --abort
-              echo "::error::${{ github.repository }}: development conflicts with main in ${conflicts:-(no conflicting files reported)} — rebase aborted, development left untouched for manual resolution"
-              exit 1
-            fi
-          fi
+        run: realign-development main
 
       # When test advances, realign development onto it so its base does not rot.
       # A main-path run that left test untouched realigns onto test for the same reason.
+      # A manual run on development realigns it with this file from development, so a
+      # fix to this workflow can unstick development before it reaches test.
       - name: Realign development onto test
         if: >-
           github.ref_name == 'test' || (github.ref_name == 'main' &&
-          steps.reset-test.outputs.aligned == 'false')
-        run: |
-          git checkout development
-          # A squash merge collapses a PR's N commits into one, so the promoted
-          # commits are NOT patch-equivalent to any single development commit and a
-          # plain rebase cannot drop them — it conflicts, aborts, and leaves
-          # development to accumulate. When the squash has drained development (its
-          # tree now matches test) adopt test's clean linear history outright; only
-          # genuinely-unpromoted work (differing trees) is preserved via rebase, and
-          # because the drained case keeps development linear that rebase no longer
-          # trips over stale merge commits.
-          if git diff --quiet origin/test development; then
-            if [ "$(git rev-parse development)" = "$(git rev-parse origin/test)" ]; then
-              echo "development already aligned with test — nothing to push"
-            else
-              git reset --hard origin/test
-              push-branch development
-              echo "development reset onto test (identical trees)"
-            fi
-          else
-            before=$(git rev-parse development)
-            if git rebase origin/test; then
-              if [ "$before" = "$(git rev-parse development)" ]; then
-                echo "development already aligned with test — nothing to push"
-              else
-                push-branch development
-                echo "development realigned onto test"
-              fi
-            else
-              conflicts=$(git diff --name-only --diff-filter=U | paste -sd ' ' -)
-              git rebase --abort
-              echo "::error::${{ github.repository }}: development conflicts with test in ${conflicts:-(no conflicting files reported)} — rebase aborted, development left untouched for manual resolution"
-              exit 1
-            fi
-          fi
+          steps.reset-test.outputs.aligned == 'false') || (github.event_name == 'workflow_dispatch'
+          && github.ref_name == 'development')
+        run: realign-development test
 
       # Runs after the development realign so a diverged test still gets
       # development rebased onto it, then fails the run so a person sees it.
