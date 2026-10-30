@@ -8,8 +8,8 @@ A portable summary for agents that don't load `.claude/rules/`; those files are 
   issue. An agent signs its commits with `Co-Authored-By: Claude <noreply@anthropic.com>`. Never
   restate internal content.
 - **Branches and PRs** — cut a kebab-case branch from `development` (or `main` in single-branch
-  repos) and open its PR with `dx git feature`; never push to or PR into `test`/`main` directly.
-  Delete the branch once its PR merges.
+  repos) and PR it back there with `dx git feature`; never push to a core branch. Delete the branch
+  once its PR merges.
 - **Code** — `.claude/rules/code.md`.
 - **Skills** — `.claude/skills/` holds review, security and content guidance; the workspace
   `CLAUDE.md` one directory up holds the board workflow and Strategy.
