@@ -17,6 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  actions: read
   contents: read
   pull-requests: read
 
@@ -29,6 +30,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
+      reuse: ${{ steps.reuse.outputs.reuse == 'true' }}
       code: ${{ steps.f.outputs.code == 'true' || steps.f.outputs.ci == 'true' }}
       is-main: ${{ steps.tier.outputs.is-main }}
       integration: ${{ steps.integration.outputs.present }}
@@ -68,11 +70,33 @@ jobs:
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
+      # A promotion PR usually holds a tree an earlier run already tested:
+      # a merge_group or push run tests exactly the commit it names. When one
+      # passed on this tree, the build, lint, format, typecheck and unit-test
+      # jobs skip. Any failed lookup means no reuse.
+      - id: reuse
+        if: github.event_name == 'pull_request' && github.base_ref != 'development'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          tree=$(gh api "repos/$REPO/git/commits/$SHA" --jq .tree.sha) || exit 0
+          shas=$(gh api "repos/$REPO/actions/workflows/ci.yaml/runs?status=success&per_page=30" \
+            --jq '.workflow_runs[] | select(.event == "merge_group" or .event == "push") | .head_sha' || true)
+          for sha in $shas; do
+            if [[ "$(gh api "repos/$REPO/git/commits/$sha" --jq .tree.sha || true)" == "$tree" ]]; then
+              echo "reuse=true" >> "$GITHUB_OUTPUT"
+              echo "reusing the passing run on $sha, which tested tree $tree"
+              exit 0
+            fi
+          done
+          echo "reuse=false" >> "$GITHUB_OUTPUT"
 
   lint:
     name: Lint
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.reuse != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -94,6 +118,8 @@ jobs:
 
   format:
     name: Format
+    needs: changes
+    if: needs.changes.outputs.reuse != 'true'
     # Runs on every PR, docs included: prettier checks Markdown and .claude/
     # too, and a docs-only change that skipped it would fail the next PR.
     runs-on: ubuntu-24.04
@@ -109,7 +135,7 @@ jobs:
   typecheck:
     name: Type Check
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.reuse != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -123,7 +149,7 @@ jobs:
   test-bun:
     name: Test (Bun ${{ matrix.bun-version }})
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.reuse != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
@@ -144,7 +170,7 @@ jobs:
   test-node:
     name: Test (Node.js ${{ matrix.node-version }})
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.reuse != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
@@ -206,7 +232,7 @@ jobs:
   coverage:
     name: Coverage
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.reuse != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
