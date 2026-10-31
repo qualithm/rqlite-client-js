@@ -179,7 +179,7 @@ export default defineConfig([
       "@typescript-eslint/prefer-promise-reject-errors": "error",
 
       // Deprecation
-      "@typescript-eslint/no-deprecated": "warn",
+      "@typescript-eslint/no-deprecated": "error",
 
       // -----------------------------------------------------------------------
       // Style
