@@ -11,8 +11,10 @@ included. --all, a changed ci.yaml, or no merge base checks every chart. Steps
 with `uses:` and steps named "Install ..." are skipped, so their tools must
 already be installed. A step using a GitHub expression can only run in CI: it
 stops the run, unless --skip-ci-only skips it instead (for jobs whose
-expression steps only report, like a Codecov upload). Every selected step runs;
-the exit status is 1 when any failed.
+expression steps only report, like a Codecov upload). What a step writes to
+$GITHUB_ENV or $GITHUB_PATH reaches the job's later steps. As in Actions, a
+failed step skips the rest of its job; every selected job runs, and the exit
+status is 1 when any failed.
 """
 
 import argparse
@@ -21,6 +23,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 try:
     import yaml
@@ -34,6 +37,13 @@ except ImportError:
             ).returncode
         )
     sys.exit("ci-jobs: needs PyYAML; install uv (https://docs.astral.sh/uv/) or run `pip install pyyaml`")
+
+# macOS blocks a headless process from ~/Documents without a prompt, so
+# arduino-cli's default sketchbook there hangs it. Keep it in its data folder.
+if sys.platform == "darwin":
+    os.environ.setdefault(
+        "ARDUINO_DIRECTORIES_USER", os.path.expanduser("~/Library/Arduino15/user")
+    )
 
 WORKFLOW = ".github/workflows/ci.yaml"
 SELF = ".claude/checks/ci-jobs.py"
@@ -79,6 +89,32 @@ def scoped(run, charts):
     return flat
 
 
+def read_lines(path):
+    with open(path, encoding="utf-8") as file:
+        return [line.strip() for line in file if line.strip()]
+
+
+def read_env_file(path):
+    """The variables a step wrote to $GITHUB_ENV: NAME=value, or NAME<<DELIMITER blocks."""
+    values = {}
+    with open(path, encoding="utf-8") as file:
+        lines = file.read().splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if "<<" in line and ("=" not in line or line.index("<<") < line.index("=")):
+            key, delimiter = line.split("<<", 1)
+            end = lines.index(delimiter, i + 1)
+            values[key] = "\n".join(lines[i + 1 : end])
+            i = end + 1
+            continue
+        if "=" in line:
+            key, value = line.split("=", 1)
+            values[key] = value
+        i += 1
+    return values
+
+
 def main():
     parser = argparse.ArgumentParser(description="run ci.yaml jobs locally")
     parser.add_argument("jobs", nargs="+", metavar="JOB")
@@ -99,9 +135,14 @@ def main():
         print(f"ci-jobs: no chart changed since {args.base}; skipping chart steps", file=sys.stderr)
 
     failed = []
+    runner_temp = tempfile.mkdtemp(prefix="ci-jobs-")
     for name in args.jobs:
         if name not in jobs:
             sys.exit(f"ci-jobs: {WORKFLOW} has no job {name}")
+        github_env = os.path.join(runner_temp, f"{name}.env")
+        github_path = os.path.join(runner_temp, f"{name}.path")
+        for file in (github_env, github_path):
+            open(file, "w", encoding="utf-8").close()
         for step in jobs[name].get("steps") or []:
             run = step.get("run")
             title = str(step.get("name") or "")
@@ -127,13 +168,20 @@ def main():
             if command is None:
                 continue
             print(f"==> {label}", flush=True)
+            exported = read_env_file(github_env)
+            paths = read_lines(github_path)
+            base = {**os.environ, "RUNNER_TEMP": runner_temp, **inherited, **exported, **env}
+            if paths:
+                base["PATH"] = os.pathsep.join([*reversed(paths), base.get("PATH", "")])
             result = subprocess.run(
                 ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", command],
                 cwd=step.get("working-directory", "."),
-                env={**os.environ, **inherited, **env},
+                env={**base, "GITHUB_ENV": github_env, "GITHUB_PATH": github_path},
             )
             if result.returncode != 0:
                 failed.append(label)
+                print(f"--- {name}: skipping its remaining steps", file=sys.stderr)
+                break
 
     if failed:
         print("ci-jobs: failed:\n  " + "\n  ".join(failed), file=sys.stderr)
