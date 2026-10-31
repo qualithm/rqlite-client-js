@@ -680,6 +680,22 @@ def judge(ref: Reference, entries: dict[tuple[str, str], Ref], names: set[str]) 
     return Finding("error", "mismatch", where, f"{ref.found}: expected {entry.raw}")
 
 
+def repo_name(path: str) -> str:
+    """The repo a checkout belongs to: its origin remote's last segment, so a
+    worktree in a differently named folder still matches its repo's allow
+    lines. Falls back to the folder name without a remote."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", path, "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        out = None
+    url = out.stdout.strip().rstrip("/") if out is not None and out.returncode == 0 else ""
+    name = re.sub(r"\.git$", "", re.split(r"[/:]", url)[-1]) if url else ""
+    return name or os.path.basename(os.path.abspath(path))
+
+
 def check(argv: list[str]) -> int:
     # The vendored registry sits beside the vendored check.
     config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images.config")
@@ -717,7 +733,7 @@ def check(argv: list[str]) -> int:
         if not os.path.isdir(path):
             findings.append(Finding("error", "tool-missing", t, f"repo not found at {path}"))
             continue
-        repos.append((os.path.basename(os.path.abspath(path)), path))
+        repos.append((repo_name(path), path))
 
     for name, path in repos:
         try:
