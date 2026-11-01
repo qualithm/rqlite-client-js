@@ -92,6 +92,17 @@ jobs:
             fi
           done
           echo "reuse=false" >> "$GITHUB_OUTPUT"
+      # Every image reference in the repo must match the vendored dx registry.
+      # Here so it runs on every event, docs included (a README can carry an
+      # image reference too) without a job of its own (qualithm/pm#3010). A
+      # repo with no vendored registry references no container image and skips.
+      - name: Check image pins against the vendored dx registry
+        run: |
+          if [ ! -f .github/images/images.config ]; then
+            echo "no vendored registry: repo references no container image; skipping"
+            exit 0
+          fi
+          .github/images/images check --config .github/images/images.config .
 
   # Format, lint and type check run as steps of one job (qualithm/pm#3032).
   # The job runs on every PR, docs included: prettier checks Markdown and
@@ -356,27 +367,12 @@ jobs:
           bun run docs --treatWarningsAsErrors --validation.notDocumented false --out
           "$RUNNER_TEMP/docs"
 
-  image-pins:
-    name: Image Pins
-    # Every image reference in the repo must match the vendored dx registry.
-    # Runs on every PR, docs included: a README can carry an image reference
-    # too. A repo with no vendored registry references no container image and
-    # skips.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Check image pins against the vendored dx registry
-        run: |
-          if [ ! -f .github/images/images.config ]; then
-            echo "no vendored registry: repo references no container image; skipping"
-            exit 0
-          fi
-          .github/images/images check --config .github/images/images.config .
-
+  # Runs only when a job failed or was cancelled, and fails then. On a green
+  # run it skips, which bills nothing and still satisfies the required check:
+  # GitHub reports a job skipped by its `if` as successful (qualithm/pm#3010).
   ci-required:
     name: CI Required
-    if: always()
+    if: failure() || cancelled()
     needs:
       [
         changes,
@@ -388,8 +384,7 @@ jobs:
         coverage,
         integration,
         generated-drift,
-        docs,
-        image-pins
+        docs
       ]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
