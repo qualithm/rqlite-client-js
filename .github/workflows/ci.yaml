@@ -71,17 +71,40 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
       # A promotion PR usually holds a tree an earlier run already tested:
-      # a merge_group or push run tests exactly the commit it names. When one
-      # passed on this tree, the build, lint, format, typecheck and unit-test
-      # jobs skip. Any failed lookup means no reuse.
+      # a merge_group or push run tests exactly the commit it names. A
+      # merge_group run often holds the tree its PR's last run tested, when the
+      # base hasn't moved since; that run recorded the tree as a
+      # ci-tree-<tree> artifact (below). When a passing run tested this tree,
+      # the build, lint, format, typecheck and unit-test jobs skip
+      # (qualithm/pm#2856). Any failed lookup means no reuse.
       - id: reuse
-        if: github.event_name == 'pull_request' && github.base_ref != 'development'
+        if:
+          github.event_name == 'merge_group' || (github.event_name == 'pull_request' &&
+          github.base_ref != 'development')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
         run: |
           tree=$(gh api "repos/$REPO/git/commits/$SHA" --jq .tree.sha) || exit 0
+          if [[ "$EVENT" == "merge_group" ]]; then
+            # Only this repo's CI, run on a pull_request, that passed.
+            workflow=$(gh api "repos/$REPO/actions/workflows/ci.yaml" --jq .id) || exit 0
+            ids=$(gh api "repos/$REPO/actions/artifacts?name=ci-tree-$tree&per_page=20" \
+              --jq '.artifacts[] | select(.expired | not) | .workflow_run.id' || true)
+            for id in $ids; do
+              passed=$(gh api "repos/$REPO/actions/runs/$id" \
+                --jq "select(.workflow_id == $workflow and .event == \"pull_request\" and .conclusion == \"success\") | .id" || true)
+              if [[ "$passed" == "$id" ]]; then
+                echo "reuse=true" >> "$GITHUB_OUTPUT"
+                echo "reusing the passing pull_request run $id, which tested tree $tree"
+                exit 0
+              fi
+            done
+            echo "reuse=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           shas=$(gh api "repos/$REPO/actions/workflows/ci.yaml/runs?status=success&per_page=30" \
             --jq '.workflow_runs[] | select(.event == "merge_group" or .event == "push") | .head_sha' || true)
           for sha in $shas; do
@@ -92,6 +115,20 @@ jobs:
             fi
           done
           echo "reuse=false" >> "$GITHUB_OUTPUT"
+      # A pull_request run records the tree it tests (the merge commit it
+      # checked out) for the merge queue's lookup above.
+      - name: Record the tested tree
+        id: tested
+        if: github.event_name == 'pull_request'
+        run: |
+          git rev-parse 'HEAD^{tree}' > "$RUNNER_TEMP/ci-tree"
+          echo "tree=$(cat "$RUNNER_TEMP/ci-tree")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'pull_request'
+        with:
+          name: ci-tree-${{ steps.tested.outputs.tree }}
+          path: ${{ runner.temp }}/ci-tree
+          retention-days: 3
       # Every image reference in the repo must match the vendored dx registry.
       # Here so it runs on every event, docs included (a README can carry an
       # image reference too) without a job of its own (qualithm/pm#3010). A
