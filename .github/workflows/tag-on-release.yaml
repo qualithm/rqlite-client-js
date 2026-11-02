@@ -13,9 +13,9 @@ name: Tag on Release
 # CI has no `push: [main]` trigger. The version source of truth is the repo's
 # manifest (package.json, npm or mip / pyproject.toml / Cargo.toml / project.yml /
 # library.properties / version.txt / VERSION / Directory.Build.props /
-# gradle.properties); a push that
-# does not change the version is a no-op because the tag already exists, so this
-# is safe to run on every push to main.
+# gradle.properties). A push that changes none of them doesn't start this
+# workflow; one that changes a manifest without bumping the version is a no-op
+# because the tag already exists.
 #
 # The tag MUST be pushed with the qualithm-ci App token, not GITHUB_TOKEN —
 # tags pushed with GITHUB_TOKEN do not trigger downstream workflows, so
@@ -24,6 +24,24 @@ name: Tag on Release
 on:
   push:
     branches: [main]
+    # Only a change to a version source can cut a new tag (qualithm/pm#3018);
+    # every other push to main found the tag already there. workflow_dispatch
+    # retries a tag push that failed.
+    paths:
+      - "package.json"
+      - "pyproject.toml"
+      - "Cargo.toml"
+      - "project.yml"
+      - "gradle.properties"
+      - "Directory.Build.props"
+      - "library.properties"
+      - "idf_component.yml"
+      - "VERSION"
+      - "version.txt"
+      # Not a version source: the Go guard below refuses a tag while go.mod
+      # pins an untagged module, so fixing go.mod must rerun it.
+      - "go.mod"
+      - ".github/workflows/tag-on-release.yaml"
   workflow_dispatch: {}
 
 concurrency:

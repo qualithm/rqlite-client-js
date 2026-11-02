@@ -31,6 +31,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       reuse: ${{ steps.reuse.outputs.reuse == 'true' }}
+      coverage-run: ${{ steps.reuse.outputs.coverage-run }}
       code: ${{ steps.f.outputs.code == 'true' || steps.f.outputs.ci == 'true' }}
       is-main: ${{ steps.tier.outputs.is-main }}
       integration: ${{ steps.integration.outputs.present }}
@@ -71,17 +72,74 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
       # A promotion PR usually holds a tree an earlier run already tested:
-      # a merge_group or push run tests exactly the commit it names. When one
-      # passed on this tree, the build, lint, format, typecheck and unit-test
-      # jobs skip. Any failed lookup means no reuse.
+      # a merge_group or push run tests exactly the commit it names. A
+      # merge_group run often holds the tree its PR's last run tested, when the
+      # base hasn't moved since; that run recorded the tree as a
+      # ci-tree-<tree> artifact (below). A push to main squashes the PR whose
+      # run recorded its tree, unless it changes what a cache is keyed on: then
+      # it runs in full so its jobs save the caches PRs restore. A reused push
+      # still uploads coverage, from the report a passing run recorded for the
+      # tree; with none, it runs in full. When a passing run tested this tree,
+      # the build, lint, format, typecheck and unit-test jobs skip
+      # (qualithm/pm#2856). Any failed lookup means no reuse.
       - id: reuse
-        if: github.event_name == 'pull_request' && github.base_ref != 'development'
+        if:
+          github.event_name == 'merge_group' || github.event_name == 'push' || (github.event_name ==
+          'pull_request' && github.base_ref != 'development')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
+          BEFORE: ${{ github.event.before }}
+          EVENT: ${{ github.event_name }}
+          COVERAGE: "true"
+          # Lockfiles, toolchain pins and this workflow: what cache keys hash.
+          CACHE_INPUTS: '(^|/)(bun\.lock|Cargo\.(lock|toml)|rust-toolchain(\.toml)?|go\.(mod|sum)|[^/]*\.csproj|Directory\.Packages\.props|global\.json|[^/]*\.gradle(\.kts)?|libs\.versions\.toml|gradle-wrapper\.properties|pyproject\.toml|uv\.lock|requirements[^/]*\.txt|Package\.(swift|resolved)|\.github/workflows/ci\.yaml)$'
         run: |
           tree=$(gh api "repos/$REPO/git/commits/$SHA" --jq .tree.sha) || exit 0
+          if [[ "$EVENT" == "push" ]]; then
+            # The compare API lists at most 300 files: past that, assume a cache input changed.
+            files=$(gh api "repos/$REPO/compare/$BEFORE...$SHA" \
+              --jq 'if (.files | length) < 300 then .files[].filename else "ci.yaml" end') || exit 0
+            if grep -qE "$CACHE_INPUTS" <<< "$files"; then
+              echo "reuse=false" >> "$GITHUB_OUTPUT"
+              echo "this push changes a cache input; running in full to save the caches"
+              exit 0
+            fi
+          fi
+          if [[ "$EVENT" == "merge_group" || "$EVENT" == "push" ]]; then
+            # Only this repo's CI, run on a pull_request, that passed.
+            workflow=$(gh api "repos/$REPO/actions/workflows/ci.yaml" --jq .id) || exit 0
+            passing() {
+              local name=$1 filter=$2 id passed
+              for id in $(gh api "repos/$REPO/actions/artifacts?name=$name&per_page=20" \
+                --jq '.artifacts[] | select(.expired | not) | .workflow_run.id' || true); do
+                passed=$(gh api "repos/$REPO/actions/runs/$id" \
+                  --jq "select(.workflow_id == $workflow and .conclusion == \"success\"$filter) | .id" || true)
+                if [[ "$passed" == "$id" ]]; then
+                  echo "$id"
+                  return
+                fi
+              done
+            }
+            id=$(passing "ci-tree-$tree" ' and .event == "pull_request"')
+            if [[ -z "$id" ]]; then
+              echo "reuse=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [[ "$EVENT" == "push" && "$COVERAGE" == "true" ]]; then
+              coverage=$(passing "coverage-$tree" '')
+              if [[ -z "$coverage" ]]; then
+                echo "reuse=false" >> "$GITHUB_OUTPUT"
+                echo "no passing run recorded coverage for tree $tree; running in full"
+                exit 0
+              fi
+              echo "coverage-run=$coverage" >> "$GITHUB_OUTPUT"
+            fi
+            echo "reuse=true" >> "$GITHUB_OUTPUT"
+            echo "reusing the passing pull_request run $id, which tested tree $tree"
+            exit 0
+          fi
           shas=$(gh api "repos/$REPO/actions/workflows/ci.yaml/runs?status=success&per_page=30" \
             --jq '.workflow_runs[] | select(.event == "merge_group" or .event == "push") | .head_sha' || true)
           for sha in $shas; do
@@ -92,59 +150,72 @@ jobs:
             fi
           done
           echo "reuse=false" >> "$GITHUB_OUTPUT"
+      # A pull_request run records the tree it tests (the merge commit it
+      # checked out) for the merge queue's lookup above.
+      - name: Record the tested tree
+        id: tested
+        if: github.event_name == 'pull_request'
+        run: |
+          git rev-parse 'HEAD^{tree}' > "$RUNNER_TEMP/ci-tree"
+          echo "tree=$(cat "$RUNNER_TEMP/ci-tree")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'pull_request'
+        with:
+          name: ci-tree-${{ steps.tested.outputs.tree }}
+          path: ${{ runner.temp }}/ci-tree
+          retention-days: 3
+      # Every image reference in the repo must match the vendored dx registry.
+      # Here so it runs on every event, docs included (a README can carry an
+      # image reference too) without a job of its own (qualithm/pm#3010). A
+      # repo with no vendored registry references no container image and skips.
+      - name: Check image pins against the vendored dx registry
+        run: |
+          if [ ! -f .github/images/images.config ]; then
+            echo "no vendored registry: repo references no container image; skipping"
+            exit 0
+          fi
+          .github/images/images check --config .github/images/images.config .
 
-  lint:
-    name: Lint
+  # Format, lint and type check run as steps of one job (qualithm/pm#3032).
+  # The job runs on every PR, docs included: prettier checks Markdown and
+  # .claude/ too, and a docs-only change that skipped it would fail the next
+  # PR. The job skips on a reused tree (qualithm/pm#2856).
+  static:
+    name: Static Checks
     needs: changes
-    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.reuse != 'true'
+    if: needs.changes.outputs.reuse != 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
+    env:
+      CODE: ${{ needs.changes.outputs.code }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: "1.4.4"
-      - run: bun install --frozen-lockfile
-      - run: bun run lint
+      - name: Install dependencies
+        id: install
+        run: bun install --frozen-lockfile
+      - name: Format
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run format
+      - name: Lint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && env.CODE == 'true' }}
+        run: bun run lint
       # npm reads package.json more strictly than Bun (it rejects a comment key
       # inside `overrides`, for one), and only the release job runs npm. Pack
       # without scripts so a manifest npm won't publish fails here, not at
       # release time after the tag already exists.
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && env.CODE == 'true' }}
         with:
           node-version: "22"
       - name: Check npm can pack the manifest
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && env.CODE == 'true' }}
         run: npm pack --dry-run --ignore-scripts
-
-  format:
-    name: Format
-    needs: changes
-    if: needs.changes.outputs.reuse != 'true'
-    # Runs on every PR, docs included: prettier checks Markdown and .claude/
-    # too, and a docs-only change that skipped it would fail the next PR.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: "1.4.4"
-      - run: bun install --frozen-lockfile
-      - run: bun run format
-
-  typecheck:
-    name: Type Check
-    needs: changes
-    if: needs.changes.outputs.code == 'true' && needs.changes.outputs.reuse != 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: "1.4.4"
-      - run: bun install --frozen-lockfile
-      - run: bun run typecheck
+      - name: Type check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && env.CODE == 'true' }}
+        run: bun run typecheck
 
   test-bun:
     name: Test (Bun ${{ matrix.bun-version }})
@@ -250,6 +321,18 @@ jobs:
             printf "Line coverage: %.2f%% (%d/%d)\n", pct, lh, lf
             if (pct + 0 < 80) { print "Coverage below 80% threshold"; exit 1 }
           }' coverage/lcov.info
+      # A reused push to main uploads this report instead of re-running the
+      # tests, so record it under the tree it covers (qualithm/pm#3012).
+      - name: Record the coverage report
+        id: covered
+        run: |
+          echo "tree=$(git -c safe.directory='*' rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+          tar -czf "$RUNNER_TEMP/coverage.tgz" -C "$GITHUB_WORKSPACE" coverage/lcov.info
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-${{ steps.covered.outputs.tree }}
+          path: ${{ runner.temp }}/coverage.tgz
+          retention-days: 14
       - name: Fetch Codecov CLI
         id: codecov-cli
         if: ${{ !cancelled() }}
@@ -303,6 +386,73 @@ jobs:
           name: coverage-report
           path: coverage/
           retention-days: 14
+
+  # A reused push to main uploads the coverage a passing run recorded for
+  # its tree, so Codecov keeps a report on main (qualithm/pm#3012).
+  coverage-upload:
+    name: Coverage Upload
+    needs: changes
+    if: needs.changes.outputs.coverage-run != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Restore the recorded coverage report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN: ${{ needs.changes.outputs.coverage-run }}
+        run: |
+          gh run download "$RUN" -R "$REPO" -n "coverage-$(git rev-parse 'HEAD^{tree}')" -D "$RUNNER_TEMP/coverage"
+          tar -xzf "$RUNNER_TEMP/coverage/coverage.tgz"
+      - name: Fetch Codecov CLI
+        id: codecov-cli
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          # A pinned GitHub release instead of the action's runtime download
+          # from cli.codecov.io, whose TLS handshake fails from our runners.
+          # Bump both values together.
+          CODECOV_CLI_VERSION: v11.3.1
+          CODECOV_CLI_SHA256: ca1d64196d2d34771084afe76ea657d581bf628e31d993ff8e52ea09cc88a56d
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/codecov" \
+            "https://github.com/codecov/codecov-cli/releases/download/$CODECOV_CLI_VERSION/codecovcli_linux"
+          echo "$CODECOV_CLI_SHA256  $RUNNER_TEMP/codecov" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/codecov"
+      - name: Upload coverage to Codecov
+        id: codecov
+        if: ${{ !cancelled() && steps.codecov-cli.outcome == 'success' }}
+        continue-on-error: true
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
+        with:
+          binary: ${{ runner.temp }}/codecov
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          fail_ci_if_error: true
+      - name: Wait before retrying the Codecov upload
+        if: ${{ !cancelled() && steps.codecov.outcome == 'failure' }}
+        run: sleep 30
+      - name: Retry the Codecov upload
+        id: codecov-retry
+        if: ${{ !cancelled() && steps.codecov.outcome == 'failure' }}
+        continue-on-error: true
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
+        with:
+          binary: ${{ runner.temp }}/codecov
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          fail_ci_if_error: true
+      # Non-blocking by design: Codecov reports coverage, it never gates it, so
+      # a Codecov outage must not fail CI Required. A missed upload surfaces
+      # as a warning annotation and a job summary line instead.
+      - name: Report a failed Codecov upload
+        if:
+          ${{ !cancelled() && steps.codecov.outcome != 'success' && steps.codecov-retry.outcome !=
+          'success' }}
+        run: |
+          echo "::warning title=Codecov upload failed::coverage was not uploaded to Codecov after a retry"
+          echo "Codecov upload failed after a retry. See the upload steps in this job." >> "$GITHUB_STEP_SUMMARY"
 
   integration:
     name: Integration Tests
@@ -368,33 +518,17 @@ jobs:
           bun run docs --treatWarningsAsErrors --validation.notDocumented false --out
           "$RUNNER_TEMP/docs"
 
-  image-pins:
-    name: Image Pins
-    # Every image reference in the repo must match the vendored dx registry.
-    # Runs on every PR, docs included: a README can carry an image reference
-    # too. A repo with no vendored registry references no container image and
-    # skips.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Check image pins against the vendored dx registry
-        run: |
-          if [ ! -f .github/images/images.config ]; then
-            echo "no vendored registry: repo references no container image; skipping"
-            exit 0
-          fi
-          .github/images/images check --config .github/images/images.config .
-
+  # Runs only when a job failed or was cancelled, and fails then. On a green
+  # run it skips, which bills nothing and still satisfies the required check:
+  # GitHub reports a job skipped by its `if` as successful (qualithm/pm#3010).
   ci-required:
     name: CI Required
-    if: always()
+    if: failure() || cancelled()
     needs:
       [
         changes,
-        lint,
-        format,
-        typecheck,
+        coverage-upload,
+        static,
         test-bun,
         test-node,
         test-deno,
@@ -402,8 +536,7 @@ jobs:
         coverage,
         integration,
         generated-drift,
-        docs,
-        image-pins
+        docs
       ]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
