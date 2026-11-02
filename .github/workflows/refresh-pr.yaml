@@ -5,23 +5,22 @@ name: Refresh PR
 
 # Regenerates an open feature PR's title/body from the live commit range on
 # every push, so the reviewer-facing page never goes stale between `dx git
-# feature` runs (qualithm/pm#418). The vendored
+# feature` runs (qualithm/pm#418), then checks the title. The vendored
 # .github/actions/refresh-pr/refresh-pr.js is dx's own synthesis, bundled, so
 # the workflow writes the same title and body `dx git feature` does.
 #
-# The PR Title job is a required check (qualithm/pm#2793): the title becomes
-# the squash commit's subject, so it must be a Conventional Commit header.
-#
-# The Decision Citations job is a required check too: code, docs and config
-# state a rule in words or point at code, and only issues cite a Decision, so
-# a line the PR adds that cites one fails it.
+# PR Title is a required check (qualithm/pm#2793): the title becomes the
+# squash commit's subject, so it must be a Conventional Commit header. The
+# refresh runs as a step of the same job, so it bills no minute of its own
+# (qualithm/pm#3032). Decision Citations, the other required check, lives in
+# pr-citations.yaml: it must not run on a retitle (qualithm/pm#3015).
 on:
   pull_request:
-    # `edited` re-checks a retitled PR. Only the PR Title job runs on it, and
-    # the refresh's own edits use GITHUB_TOKEN, which starts no workflow, so
-    # this can never retrigger itself.
+    # `edited` re-checks a retitled PR. The refresh's own edits use
+    # GITHUB_TOKEN, which starts no workflow, so this can never retrigger
+    # itself.
     types: [opened, synchronize, reopened, edited]
-  # A required check must report in the merge queue too; it passes there.
+  # A required check must report in the merge queue too; it skips there.
   merge_group:
     types: [checks_requested]
 
@@ -37,19 +36,22 @@ permissions:
   pull-requests: write
 
 jobs:
-  refresh:
-    name: Refresh PR title/body
-    # Promotion hops (development -> test -> main) are owned by `dx git merge`,
-    # whose synthesis differs — never touch those PRs here.
+  title:
+    name: PR Title
+    # Merge-queue runs and promotion PRs (whose titles `dx git merge` writes)
+    # skip, which bills nothing and still satisfies the required check: GitHub
+    # reports a job skipped by its `if` as successful.
     if:
-      github.event_name == 'pull_request' && github.event.action != 'edited' && github.actor !=
-      'qualithm-ci[bot]' && !contains(fromJSON('["development", "test", "main"]'), github.head_ref)
+      github.event_name == 'pull_request' && !contains(fromJSON('["development", "test", "main"]'),
+      github.head_ref)
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
+      # The refresh reads the whole commit range; a retitle needs only the action.
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
+          fetch-depth: ${{ github.event.action == 'edited' && 1 || 0 }}
 
       - name: Skip PRs that predate the vendored action
         id: vendored
@@ -65,101 +67,22 @@ jobs:
         with:
           bun-version: "1.4.4"
 
+      # A retitle only re-checks; the CI app's pushes keep the title it wrote.
       - name: Refresh the PR title/body
-        if: steps.vendored.outputs.present == 'true'
+        if:
+          steps.vendored.outputs.present == 'true' && github.event.action != 'edited' &&
+          github.actor != 'qualithm-ci[bot]'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BASE_REF: ${{ github.base_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: bun .github/actions/refresh-pr/refresh-pr.js "$BASE_REF" "$PR_NUMBER"
 
-  title:
-    name: PR Title
-    # Runs after the refresh, whatever it did, so it judges the title the
-    # refresh left. Merge-queue runs and promotion PRs (whose titles dx git
-    # merge writes) pass without a check.
-    needs: refresh
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Decide whether to check
-        id: scope
-        env:
-          EVENT: ${{ github.event_name }}
-          HEAD: ${{ github.head_ref }}
-        run: |
-          case "$EVENT:$HEAD" in
-            pull_request:development | pull_request:test | pull_request:main | merge_group:*)
-              echo "check=false" >> "$GITHUB_OUTPUT" ;;
-            *) echo "check=true" >> "$GITHUB_OUTPUT" ;;
-          esac
-
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        if: steps.scope.outputs.check == 'true'
-        with:
-          sparse-checkout: .github/actions/refresh-pr
-
-      - name: Skip PRs that predate the vendored action
-        id: vendored
-        if: steps.scope.outputs.check == 'true'
-        run:
-          test -f .github/actions/refresh-pr/refresh-pr.js && echo "present=true" >>
-          "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
-
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        if: steps.vendored.outputs.present == 'true'
-        with:
-          bun-version: "1.4.4"
-
+      # Runs after the refresh, whatever it did, so it judges the title the
+      # refresh left.
       - name: Check the PR title
-        if: steps.vendored.outputs.present == 'true'
+        if: ${{ !cancelled() && steps.vendored.outputs.present == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: bun .github/actions/refresh-pr/refresh-pr.js --check-title "$PR_NUMBER"
-
-  citations:
-    name: Decision Citations
-    # Reads only the lines the PR adds, so an untouched fixture never fails it.
-    # Merge-queue runs and promotion PRs (checked on their feature PRs) pass
-    # without a check.
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Decide whether to check
-        id: scope
-        env:
-          EVENT: ${{ github.event_name }}
-          HEAD: ${{ github.head_ref }}
-        run: |
-          case "$EVENT:$HEAD" in
-            pull_request:development | pull_request:test | pull_request:main | merge_group:*)
-              echo "check=false" >> "$GITHUB_OUTPUT" ;;
-            *) echo "check=true" >> "$GITHUB_OUTPUT" ;;
-          esac
-
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        if: steps.scope.outputs.check == 'true'
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-
-      - name: Skip PRs that predate the vendored action
-        id: vendored
-        if: steps.scope.outputs.check == 'true'
-        run:
-          test -f .github/actions/refresh-pr/refresh-pr.js && echo "present=true" >>
-          "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
-
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        if: steps.vendored.outputs.present == 'true'
-        with:
-          bun-version: "1.4.4"
-
-      - name: Check the added lines for Decision citations
-        if: steps.vendored.outputs.present == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: bun .github/actions/refresh-pr/refresh-pr.js --check-citations "$BASE_REF"
