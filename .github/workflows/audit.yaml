@@ -13,6 +13,14 @@
 # each redundant (safe to delete) or still-needed. A pin that equals the latest
 # published version is still-needed when deleting it would drop a dependent
 # back onto a vulnerable version (sharp, above); verify a broken one by hand.
+#
+# An advisory that no bump or top-level override can clear may be skipped by
+# listing its GHSA ID in a top-level "//auditIgnore" object. Each value names
+# why it can't be fixed, the upstream issue that will unblock it, and a
+# "review-by YYYY-MM-DD" date at most 90 days out, e.g.
+#   "//auditIgnore": { "GHSA-xxxx-xxxx-xxxx": "typedoc needs minimatch 10; unblocked by TypeStrong/typedoc#3150; review-by 2027-02-01" }
+# An entry past its review-by date, undated, or dated further out fails the job
+# and is no longer skipped (qualithm/pm#3083).
 
 name: Security Audit
 
@@ -44,11 +52,49 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: "1.4.4"
+      - name: Read advisory ignores from package.json
+        id: ignores
+        run: |
+          # shellcheck disable=SC2016 # the quoted script is JavaScript, not shell
+          bun -e '
+            const pkg = await Bun.file("package.json").json();
+            const entries = Object.entries(pkg["//auditIgnore"] ?? {});
+            const today = new Date().toISOString().slice(0, 10);
+            const limit = new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);
+            const ids = [];
+            let stale = false;
+            for (const [id, reason] of entries) {
+              const date = /review-by (\d{4}-\d{2}-\d{2})/.exec(String(reason))?.[1];
+              let problem = "";
+              if (!/^GHSA(-[0-9a-z]{4}){3}$/.test(id)) problem = "is not a GHSA ID";
+              else if (!date) problem = "has no review-by YYYY-MM-DD date";
+              else if (date < today) problem = `passed its review-by date ${date}`;
+              else if (date > limit) problem = `has a review-by date ${date} more than 90 days out`;
+              if (problem) {
+                console.log(`::error:://auditIgnore ${id} ${problem}: ${reason}`);
+                stale = true;
+              } else ids.push(id);
+            }
+            require("node:fs").appendFileSync(
+              process.env.GITHUB_OUTPUT,
+              `advisories=${ids.join(",")}\nstale=${stale}\n`,
+            );
+          '
       # bun audit reads bun.lock alone, so nothing is installed (qualithm/pm#3019).
       - name: Audit dependencies
         id: scan
         continue-on-error: true
-        run: bun audit
+        env:
+          IGNORES: ${{ steps.ignores.outputs.advisories }}
+          STALE: ${{ steps.ignores.outputs.stale }}
+        run: |
+          args=()
+          IFS=, read -ra ids <<< "$IGNORES"
+          for id in "${ids[@]}"; do args+=(--ignore "$id"); done
+          status=0
+          bun audit "${args[@]}" || status=1
+          if [ "$STALE" = "true" ]; then status=1; fi
+          exit "$status"
       - name: Create app token for pm issue filing
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
