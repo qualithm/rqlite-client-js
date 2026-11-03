@@ -35,5 +35,10 @@ Never put a comment key (`"// pkg": "why"`) inside `overrides`: Bun ignores it, 
 key there as a package name and refuses to publish. Record why an override exists in the top-level
 `"//overrides"` object instead, keyed by the same package name.
 
+When no bump or top-level override can clear an advisory (a dependent breaks on the patched major),
+skip it in a top-level `"//auditIgnore"` object, keyed by GHSA ID. The value names why it can't be
+fixed, the upstream issue that will unblock it, and a `review-by YYYY-MM-DD` date at most 90 days
+out; the audit fails once that date passes. Never ignore an advisory an override clears.
+
 Published libraries ship zero `dependencies`; an override-only fix needs no release, but a change to
 `dependencies`/`peerDependencies` does.
