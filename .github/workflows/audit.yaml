@@ -55,6 +55,7 @@ jobs:
       - name: Read advisory ignores from package.json
         id: ignores
         run: |
+          # shellcheck disable=SC2016 # the quoted script is JavaScript, not shell
           bun -e '
             const pkg = await Bun.file("package.json").json();
             const entries = Object.entries(pkg["//auditIgnore"] ?? {});
