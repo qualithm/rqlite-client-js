@@ -115,6 +115,26 @@ def read_env_file(path):
     return values
 
 
+# A step condition built only from these runs locally, where the code is
+# taken as changed and nothing as reused: the checks run in fewer jobs, each
+# step gated on what changed (qualithm/pm#3032).
+CHANGE_GATE_ATOM = re.compile(
+    r"!\s*cancelled\(\)"
+    r"|env\.(?:CODE|REUSE)\s*[!=]=\s*'true'"
+    r"|needs\.changes\.outputs\.[\w-]+\s*[!=]=\s*'true'"
+)
+
+
+def change_gate(condition: object) -> bool:
+    """Whether a step's `if` only says the step runs when code changed and
+    nothing was reused, so it runs locally."""
+    text = str(condition).strip()
+    if text.startswith("${{") and text.endswith("}}"):
+        text = text[3:-2]
+    rest = CHANGE_GATE_ATOM.sub("", text)
+    return re.fullmatch(r"[\s()&|]*", rest) is not None
+
+
 def main():
     parser = argparse.ArgumentParser(description="run ci.yaml jobs locally")
     parser.add_argument("jobs", nargs="+", metavar="JOB")
@@ -159,7 +179,11 @@ def main():
                 if "${{" not in str(value)
             }
             env = {key: str(value) for key, value in (step.get("env") or {}).items()}
-            if "if" in step or "${{" in run or any("${{" in value for value in env.values()):
+            if (
+                ("if" in step and not change_gate(step["if"]))
+                or "${{" in run
+                or any("${{" in value for value in env.values())
+            ):
                 if args.skip_ci_only:
                     print(f"--- {label}: skipped (runs only in CI)", file=sys.stderr)
                     continue
