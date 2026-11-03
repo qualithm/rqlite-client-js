@@ -97,13 +97,16 @@
     "markdown-it": "14.3.3",
     "linkify-it": "5.0.2",
     "browserslist": "4.29.0",
-    "baseline-browser-mapping": "2.11.25"
+    "baseline-browser-mapping": "2.11.25",
+    "minimatch": "11.0.4"
   },
   "//overrides": {
     "browserslist": "security: browserslist ≤4.28.6; pinned to patched 4.29.0",
-    "baseline-browser-mapping": "security: >=2.0.0 <2.11.0; pinned to 2.11.25 (GHSA-w5vr-8v7q-w6rv)"
+    "baseline-browser-mapping": "security: >=2.0.0 <2.11.0; pinned to 2.11.25 (GHSA-w5vr-8v7q-w6rv)",
+    "minimatch": "security: GHSA-g3hv-75wg-m249 fixed only in >=11.0.1; typedoc asks ^10, so it is patched to use 11's public match()",
+    "typedoc": "patched (patches/): calls Minimatch#matchOne, which minimatch 11 made internal; drop once TypeStrong/typedoc#3150 ships"
   },
-  "//auditIgnore": {
-    "GHSA-g3hv-75wg-m249": "dev-only: typedoc asks minimatch ^10 and calls Minimatch#matchOne, which 11 made internal; unblocked by TypeStrong/typedoc#3150; review-by 2027-02-01"
+  "patchedDependencies": {
+    "typedoc@0.28.19": "patches/typedoc@0.28.19.patch"
   }
 }
