@@ -475,11 +475,14 @@ jobs:
   # dx:generated-drift-begin
   generated-drift:
     name: Generated Drift
+    needs: changes
+    if: needs.changes.outputs.reuse != 'true'
     # A generated client commits its generator's output. Rerunning the pinned
     # generator on the committed spec must reproduce it exactly, so a hand edit
     # can't pass as a generator change.
-    # Ungated by `changes`: the generator pin and config live outside the code
-    # filter. A repo without openapi-generator.yaml generates nothing and skips.
+    # Ungated by the code filter: the generator pin and config live outside it.
+    # Skips on a reused tree (qualithm/pm#2856). A repo without
+    # openapi-generator.yaml generates nothing and skips.
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
