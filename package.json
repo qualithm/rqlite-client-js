@@ -102,5 +102,8 @@
   "//overrides": {
     "browserslist": "security: browserslist ≤4.28.6; pinned to patched 4.29.0",
     "baseline-browser-mapping": "security: >=2.0.0 <2.11.0; pinned to 2.11.25 (GHSA-w5vr-8v7q-w6rv)"
+  },
+  "//auditIgnore": {
+    "GHSA-g3hv-75wg-m249": "dev-only: typedoc asks minimatch ^10 and calls Minimatch#matchOne, which 11 made internal; unblocked by TypeStrong/typedoc#3150; review-by 2027-02-01"
   }
 }
