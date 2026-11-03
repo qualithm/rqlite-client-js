@@ -60,6 +60,8 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 CODES = {
@@ -245,6 +247,8 @@ def substitute(value: str, env: dict[str, str]) -> str | None:
 def yaml_docs(source: str, text: bool = False) -> list:
     """Every YAML document in a file (or in `source` itself when text=True) as
     JSON-compatible data, anchors and aliases resolved."""
+    if not text and source in _DOCS:
+        return _DOCS[source]
     args = ["yq", "-o=json", "-I=0", "explode(.)"]
     p = subprocess.run(
         args + ([] if text else [source]), input=source if text else None, capture_output=True, text=True
@@ -259,6 +263,45 @@ def yaml_docs(source: str, text: bool = False) -> list:
         docs.append(doc)
         buf = buf[end:].lstrip()
     return docs
+
+
+# Documents by path, filled by preload_yaml: starting yq once per file cost
+# about 10s in a repo with hundreds of chart renders and values files.
+_DOCS: dict[str, list] = {}
+YQ_BATCH = 20
+
+
+def parse_batch(batch: list[str]) -> dict[str, list] | None:
+    """One yq call over `batch`: each document's data by file, or None when
+    yq rejects the batch."""
+    p = subprocess.run(
+        ["yq", "-o=json", "-I=0", 'explode(.) | {"f": filename, "d": .}', *batch],
+        capture_output=True,
+        text=True,
+    )
+    if p.returncode != 0:
+        return None
+    docs: dict[str, list] = {path: [] for path in batch}
+    # -I=0 writes one document per line; JSON escapes any newline inside it.
+    for line in p.stdout.splitlines():
+        if not line.strip():
+            continue
+        item = json.loads(line)
+        if item.get("f") not in docs:
+            return None
+        docs[item["f"]].append(item["d"])
+    return docs
+
+
+def preload_yaml(paths: list[str]) -> None:
+    """Parse many files in a few parallel yq calls, for yaml_docs to read back.
+    A batch yq rejects, such as one holding a file that isn't valid YAML, stays
+    unloaded, so yaml_docs parses each of its files alone and names the bad one."""
+    batches = [paths[i : i + YQ_BATCH] for i in range(0, len(paths), YQ_BATCH)]
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as pool:
+        for docs in pool.map(parse_batch, batches):
+            if docs is not None:
+                _DOCS.update(docs)
 
 
 def walk(node: object):
@@ -345,6 +388,22 @@ def label_line(physical: list[str], start: int) -> int:
     return start
 
 
+PLATFORM_ARCHES = ("amd64", "arm64")
+
+
+def platform_stage(raw: str, env: dict[str, str], stages: set[str]) -> bool:
+    """Whether a reference built from BuildKit's automatic platform arguments
+    (deps-${TARGETARCH}) names a stage for every target architecture."""
+    for arch in PLATFORM_ARCHES:
+        platform = {"TARGETARCH": arch, "BUILDARCH": arch, "TARGETOS": "linux", "BUILDOS": "linux",
+                    "TARGETPLATFORM": f"linux/{arch}", "BUILDPLATFORM": f"linux/{arch}", "TARGETVARIANT": "",
+                    "BUILDVARIANT": ""}
+        name = substitute(raw, {**platform, **env})
+        if name is None or name.lower() not in stages:
+            return False
+    return True
+
+
 def scan_dockerfile(repo: str, rel: str, text: str) -> list[Reference]:
     out = []
     env: dict[str, str] = {}
@@ -377,13 +436,14 @@ def scan_dockerfile(repo: str, rel: str, text: str) -> list[Reference]:
             if len(args) >= 3 and args[1].upper() == "AS":
                 stages.add(args[2].lower())
             if image is None:
-                out.append(Reference(repo, rel, n, args[0], "unresolved"))
+                if not platform_stage(args[0], env, stages):
+                    out.append(Reference(repo, rel, n, args[0], "unresolved"))
             elif image.lower() not in stages and image != "scratch":
                 out.append(Reference(repo, rel, n, image))
         elif inst in ("COPY", "RUN"):
             for m in re.finditer(r"--(?:from|mount=[^\s]*?\bfrom)=([^\s,]+)", line):
                 src = m.group(1)
-                if src.lower() in stages or src.isdigit():
+                if src.lower() in stages or src.isdigit() or platform_stage(src, env, stages):
                     continue
                 image = substitute(src, env)
                 out.append(Reference(repo, rel, n, image if image is not None else src, "" if image else "unresolved"))
@@ -530,38 +590,92 @@ def chart_combos(chart: str) -> list[list[str]]:
     return out
 
 
-def scan_chart(repo: str, root: str, chart_rel: str, known: set[str]) -> tuple[list[Reference], list[Finding]]:
+def render(chart: str, combo: list[str]) -> subprocess.CompletedProcess:
+    """Render one values layering of a chart."""
+    args = ["helm", "template", "x", chart]
+    for v in combo:
+        args += ["-f", os.path.join(chart, v)]
+    return subprocess.run(args, capture_output=True, text=True)
+
+
+# A document separator in helm's output. Block scalars are indented, so a
+# separator is the only line that starts with ---.
+DOC_SEP_RE = re.compile(r"^---[ \t]*$", re.M)
+
+
+def render_charts(root: str, charts: list[str], tmp: str) -> dict[str, list[tuple[list[str], list[str], subprocess.CompletedProcess]]]:
+    """Every chart's renders, run in parallel: each is one helm process, and a
+    repo can hold well over a hundred. The layerings mostly render the same
+    documents (about a tenth of cloud's 90 MB is unique), so each distinct
+    document is written once to `tmp` and parsed once. Returns, per chart in
+    combo order, the values layering, its documents' files and the helm result."""
+    for chart_rel in charts:
+        chart = os.path.join(root, chart_rel)
+        with open(os.path.join(chart, "Chart.yaml")) as f:
+            if re.search(r"^dependencies:\s*\n\s+-", f.read(), re.M) and not os.path.isdir(os.path.join(chart, "charts")):
+                subprocess.run(["helm", "dependency", "build", chart], capture_output=True)
+    jobs = [(c, combo) for c in charts for combo in chart_combos(os.path.join(root, c))]
+    with ThreadPoolExecutor(max_workers=(os.cpu_count() or 2) * 2) as pool:
+        results = list(pool.map(lambda job: render(os.path.join(root, job[0]), job[1]), jobs))
+    files: dict[str, str] = {}
+    out: dict[str, list] = {c: [] for c in charts}
+    for (chart_rel, combo), p in zip(jobs, results):
+        paths = []
+        if p.returncode == 0:
+            for doc in DOC_SEP_RE.split(p.stdout):
+                if not doc.strip():
+                    continue
+                if doc not in files:
+                    files[doc] = os.path.join(tmp, f"{len(files)}.yaml")
+                    with open(files[doc], "w") as f:
+                        f.write(doc)
+                paths.append(files[doc])
+        out[chart_rel].append((combo, paths, p))
+    preload_yaml(list(files.values()))
+    return out
+
+
+def rendered_images(path: str, known: set[str]) -> list[str]:
+    """The images one rendered document runs, in the order they appear."""
+    images = []
+    for doc in yaml_docs(path):
+        for node in walk(doc):
+            image = None
+            if isinstance(node, dict) and isinstance(node.get("image"), str):
+                image = node["image"]
+            elif isinstance(node, str):
+                # Operators take the images they launch as flag values:
+                # --acme-http01-solver-image=quay.io/...:v1.20.2
+                candidate = node.rsplit("=", 1)[-1] if node.startswith("-") else node
+                if looks_like_image(candidate, known):
+                    image = candidate
+            if image:
+                images.append(image)
+    return images
+
+
+def scan_chart(
+    repo: str, root: str, chart_rel: str, known: set[str], renders: list[tuple[list[str], list[str], subprocess.CompletedProcess]]
+) -> tuple[list[Reference], list[Finding]]:
     chart = os.path.join(root, chart_rel)
     refs: dict[str, Reference] = {}
     findings: list[Finding] = []
-    with open(os.path.join(chart, "Chart.yaml")) as f:
-        if re.search(r"^dependencies:\s*\n\s+-", f.read(), re.M) and not os.path.isdir(os.path.join(chart, "charts")):
-            subprocess.run(["helm", "dependency", "build", chart], capture_output=True)
 
     rendered = 0
     errors = []
-    for combo in chart_combos(chart):
-        args = ["helm", "template", "x", chart]
-        for v in combo:
-            args += ["-f", os.path.join(chart, v)]
-        p = subprocess.run(args, capture_output=True, text=True)
+    # Images by rendered document: most layerings repeat the same documents.
+    seen_docs: dict[str, list[str]] = {}
+    for combo, paths, p in renders:
         label = "+".join(c[len("values-") : -len(".yaml")] if c != "values.yaml" else "base" for c in combo)
         if p.returncode != 0:
             errors.append(f"{label}: {next((l for l in p.stderr.splitlines() if 'Error' in l), p.stderr.strip()[:200])}")
             continue
         rendered += 1
-        for doc in yaml_docs(p.stdout, text=True):
-            for node in walk(doc):
-                image = None
-                if isinstance(node, dict) and isinstance(node.get("image"), str):
-                    image = node["image"]
-                elif isinstance(node, str):
-                    # Operators take the images they launch as flag values:
-                    # --acme-http01-solver-image=quay.io/...:v1.20.2
-                    candidate = node.rsplit("=", 1)[-1] if node.startswith("-") else node
-                    if looks_like_image(candidate, known):
-                        image = candidate
-                if image and image not in refs:
+        for path in paths:
+            if path not in seen_docs:
+                seen_docs[path] = rendered_images(path, known)
+            for image in seen_docs[path]:
+                if image not in refs:
                     refs[image] = Reference(repo, chart_rel, 0, image, f"rendered ({label})")
 
     if rendered == 0:
@@ -602,11 +716,28 @@ def scan_repo(repo: str, root: str, known: set[str]) -> tuple[list[Reference], l
         if not shutil.which("helm"):
             findings.append(Finding("error", "tool-missing", repo, "helm is needed to render this repo's charts"))
         else:
-            for chart in charts:
-                r, f = scan_chart(repo, root, chart, known)
-                refs += r
-                findings += f
+            preload_yaml(
+                [
+                    os.path.join(root, c, v)
+                    for c in charts
+                    for v in sorted(os.listdir(os.path.join(root, c)))
+                    if v == "values.yaml" or (v.startswith("values-") and v.endswith(".yaml"))
+                ]
+            )
+            with tempfile.TemporaryDirectory() as tmp:
+                renders = render_charts(root, charts, tmp)
+                for chart in charts:
+                    r, f = scan_chart(repo, root, chart, known, renders[chart])
+                    refs += r
+                    findings += f
     in_chart = tuple(c + "/" for c in charts)
+    preload_yaml(
+        [
+            os.path.join(root, rel)
+            for rel in files
+            if rel.endswith((".yaml", ".yml")) and (COMPOSE_RE.search(rel) or WORKFLOW_RE.match(rel))
+        ]
+    )
 
     for rel in files:
         path = os.path.join(root, rel)

@@ -1,0 +1,23 @@
+diff --git a/dist/lib/utils/fs.js b/dist/lib/utils/fs.js
+index 956605e164ba166e21da2868672e0c744ba6e95f..6325f11fad9e8e30470c41a9a66ae791ed9dc17a 100644
+--- a/dist/lib/utils/fs.js
++++ b/dist/lib/utils/fs.js
+@@ -194,6 +194,9 @@ export function discoverFiles(rootDir, controller) {
+  */
+ export function glob(pattern, root, options = {}) {
+     const mini = new Minimatch(pattern);
++    // minimatch 11 made matchOne internal; flipNegate keeps a negated pattern
++    // matching its own paths, as matchOne on its rows did.
++    const partialMini = new Minimatch(pattern, { flipNegate: true });
+     const shouldIncludeNodeModules = pattern.includes("node_modules");
+     const controller = {
+         matches(path) {
+@@ -208,7 +211,7 @@ export function glob(pattern, root, options = {}) {
+                 !shouldIncludeNodeModules) {
+                 return false;
+             }
+-            return mini.set.some((row) => mini.matchOne(childPath, row, /* partial */ true));
++            return partialMini.match(childPath.join("/"), /* partial */ true);
+         },
+         matchDirectories: options.includeDirectories,
+         followSymlinks: options.followSymlinks,
