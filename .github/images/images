@@ -3,13 +3,13 @@
 """Hold every container image reference in a repo to the vendored image registry.
 
 dx images sync vendors this check and the registry (images.config, rendered from
-dx/images.json) into .github/images/ of every enrolled repo, where the CI Image
-Pins job runs it. dx itself runs
+dx/images.json) into .github/images/ of every enrolled repo, where CI's Detect
+Changes job runs it. dx itself runs
 the TypeScript port in src/lib/imageScan.ts; a unit test holds the two to the same
 findings.
 
 Usage:
-  images check --config FILE [--json] [repo-or-path ...]
+  images check --config FILE [--json] [--changed JSON] [repo-or-path ...]
 
 `check` finds every image reference in each named repo (a path, or a name under
 $QUALITHM_ROOT; default: the current directory) and holds it to the registry.
@@ -33,6 +33,12 @@ It reads:
   code (.ts .tsx .js .mjs .go .rs .py)       quoted image references
   Markdown code fences                       docker run/pull/create, FROM, image:
   every other text file                      docker run/pull/create
+
+--changed takes the repo-relative paths a change touched, as a JSON array (CI
+passes the paths filter's list). Then only charts it touched render: a chart is
+touched by a file in its directory or in a file:// dependency, and every chart
+is when the registry (.github/images/) changed. An untouched chart's findings
+are its base's, which passed. Without --changed, every chart renders.
 
 Each reference yields at most one finding:
 
@@ -707,11 +713,37 @@ def scan_chart(
     return list(refs.values()), findings
 
 
-def scan_repo(repo: str, root: str, known: set[str]) -> tuple[list[Reference], list[Finding]]:
+def chart_inputs(root: str, chart: str) -> list[str]:
+    """The repo-relative directories a chart renders from: its own and each
+    file:// dependency's."""
+    dirs = [chart]
+    with open(os.path.join(root, chart, "Chart.yaml")) as f:
+        for m in re.finditer(r"""^\s*repository:\s*["']?file://([^"'\s]+)""", f.read(), re.M):
+            dirs.append(os.path.normpath(os.path.join(chart, m.group(1))))
+    return dirs
+
+
+def touched_charts(root: str, charts: list[str], changed: list[str]) -> list[str]:
+    """The charts a change to `changed` can render differently: every chart
+    when the registry changed, else those with a changed file in one of
+    their inputs."""
+    if any(path.startswith(".github/images/") for path in changed):
+        return charts
+    return [
+        chart
+        for chart in charts
+        if any(path.startswith(d + "/") for d in chart_inputs(root, chart) for path in changed)
+    ]
+
+
+def scan_repo(
+    repo: str, root: str, known: set[str], changed: list[str] | None = None
+) -> tuple[list[Reference], list[Finding]]:
     refs: list[Reference] = []
     findings: list[Finding] = []
     files = repo_files(root)
-    charts = sorted({os.path.dirname(f) for f in files if os.path.basename(f) == "Chart.yaml"})
+    all_charts = sorted({os.path.dirname(f) for f in files if os.path.basename(f) == "Chart.yaml"})
+    charts = all_charts if changed is None else touched_charts(root, all_charts, changed)
     if charts:
         if not shutil.which("helm"):
             findings.append(Finding("error", "tool-missing", repo, "helm is needed to render this repo's charts"))
@@ -730,7 +762,7 @@ def scan_repo(repo: str, root: str, known: set[str]) -> tuple[list[Reference], l
                     r, f = scan_chart(repo, root, chart, known, renders[chart])
                     refs += r
                     findings += f
-    in_chart = tuple(c + "/" for c in charts)
+    in_chart = tuple(c + "/" for c in all_charts)
     preload_yaml(
         [
             os.path.join(root, rel)
@@ -831,6 +863,7 @@ def check(argv: list[str]) -> int:
     # The vendored registry sits beside the vendored check.
     config = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images.config")
     as_json = False
+    changed: list[str] | None = None
     targets: list[str] = []
     it = iter(argv)
     for a in it:
@@ -840,6 +873,15 @@ def check(argv: list[str]) -> int:
             config = a.split("=", 1)[1]
         elif a == "--json":
             as_json = True
+        elif a == "--changed" or a.startswith("--changed="):
+            raw = a.split("=", 1)[1] if "=" in a else next(it, "")
+            try:
+                changed = json.loads(raw)
+            except ValueError:
+                changed = None
+            if not isinstance(changed, list) or not all(isinstance(path, str) for path in changed):
+                print("images: --changed takes a JSON array of paths", file=sys.stderr)
+                return 2
         elif a.startswith("-"):
             print(f"images: unknown flag: {a}", file=sys.stderr)
             return 2
@@ -868,7 +910,7 @@ def check(argv: list[str]) -> int:
 
     for name, path in repos:
         try:
-            refs, f = scan_repo(name, path, names)
+            refs, f = scan_repo(name, path, names, changed)
         except RuntimeError as e:
             findings.append(Finding("error", "render-failed", name, str(e)))
             continue
