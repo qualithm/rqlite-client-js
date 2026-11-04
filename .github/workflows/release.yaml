@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   publish-npm:
+    if: ${{ !endsWith(github.repository, '-example') }}
     name: Publish to npm
     # Must stay on a GitHub-hosted runner. Trusted publishing (OIDC, no npm
     # token) always signs provenance, and npm rejects provenance from
@@ -72,6 +73,7 @@ jobs:
         run: npm publish --access public
 
   deploy-docs:
+    if: ${{ !endsWith(github.repository, '-example') }}
     name: Deploy Docs
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -116,7 +118,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    if:
+      ${{ !endsWith(github.repository, '-example') && (github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/')) }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
