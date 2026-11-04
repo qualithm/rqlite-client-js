@@ -54,7 +54,9 @@ var NAMED = /\bDecisions?\b[^.\n]{0,40}#\d+/i;
 var BARE = /\bDecisions? +\d+\b/i;
 var DISCUSSION_URL = /github\.com\/qualithm\/pm\/discussions\/\d+/;
 var PM_REF = /\b(?:qualithm\/)?pm#(\d+)\b/g;
-function citesDecision(line, decisions) {
+var CHAR_REF = /&#(?:\d+|x[0-9a-f]+);/gi;
+function citesDecision(raw, decisions) {
+  const line = raw.replace(CHAR_REF, " ");
   if (NAMED.test(line) || BARE.test(line) || DISCUSSION_URL.test(line)) {
     return true;
   }
