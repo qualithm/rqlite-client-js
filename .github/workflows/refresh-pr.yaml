@@ -11,8 +11,8 @@ name: Refresh PR
 #
 # PR Title is a required check (qualithm/pm#2793): the title becomes the
 # squash commit's subject, so it must be a Conventional Commit header. The
-# refresh runs as a step of the same job, so it bills no minute of its own
-# (qualithm/pm#3032). Decision Citations, the other required check, lives in
+# refresh runs as a step of the same job, so it bills no minute of its own.
+# Decision Citations, the other required check, lives in
 # pr-citations.yaml: it must not run on a retitle (qualithm/pm#3015).
 on:
   pull_request:
