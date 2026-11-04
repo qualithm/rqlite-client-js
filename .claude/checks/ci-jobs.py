@@ -117,7 +117,7 @@ def read_env_file(path):
 
 # A step condition built only from these runs locally, where the code is
 # taken as changed and nothing as reused: the checks run in fewer jobs, each
-# step gated on what changed (qualithm/pm#3032).
+# step gated on what changed.
 CHANGE_GATE_ATOM = re.compile(
     r"!\s*cancelled\(\)"
     r"|env\.(?:CODE|REUSE)\s*[!=]=\s*'true'"
