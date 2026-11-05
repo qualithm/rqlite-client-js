@@ -15,8 +15,9 @@ What to weigh when reviewing a change in this repository. Ordered by how often e
   instead. Reject it.
 - **Tests with behavior.** Any behavior change should carry a test change. A feature PR with no test
   diff needs a reason.
-- **Error messages.** Lowercase, no trailing punctuation, and still accurate after the change. An
-  error that names a condition the code no longer checks is a bug.
+- **Error messages.** Code and API errors are lowercase with no trailing punctuation; UI copy
+  follows the content guide. Either is still accurate after the change. An error that names a
+  condition the code no longer checks is a bug.
 - **Types and config.** When a data shape changes, the type definitions, env vars, and docs that
   mention it change in the same PR or the PR is incomplete.
 - **Unused dependencies.** Removing code should prompt a dependency check — a dep nothing imports
