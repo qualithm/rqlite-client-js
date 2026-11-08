@@ -82,3 +82,58 @@ jobs:
       - name: Fail job if the scan failed
         if: steps.scan.outcome == 'failure'
         run: exit 1
+
+  gitleaks:
+    name: Secret Scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Create app token for pm issue filing
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.PROJECTS_GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PROJECTS_GH_APP_PRIVATE_KEY }}
+          owner: qualithm
+      # Every branch's whole history: a secret a later commit removed is still leaked.
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        env:
+          # Pinned release plus the sha256 of its linux_x64 tarball from the
+          # release's checksums file. Bump both values together.
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v$GITLEAKS_VERSION/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "$GITLEAKS_SHA256  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+      # gitleaks loads a committed .gitleaks.toml on its own, so its allowlist is
+      # the only exemption. --verbose lists each finding's rule, file, line and
+      # commit for triage, --redact masks the secret in it, and no report file is
+      # written or uploaded.
+      - name: Scan the history for secrets
+        id: scan
+        continue-on-error: true
+        run: |
+          "$RUNNER_TEMP/gitleaks" git --redact --verbose --exit-code 1 --no-banner --log-opts=--all .
+      - name: Report failure
+        if: steps.scan.outcome == 'failure'
+        uses: ./.github/actions/report-scan-failure
+        with:
+          mode: report
+          title: "${{ github.event.repository.name }}: gitleaks found a leaked secret"
+          github-token: ${{ steps.app-token.outputs.token }}
+      - name: Resolve stale failure issue
+        if: steps.scan.outcome == 'success'
+        uses: ./.github/actions/report-scan-failure
+        with:
+          mode: resolve
+          title: "${{ github.event.repository.name }}: gitleaks found a leaked secret"
+          github-token: ${{ steps.app-token.outputs.token }}
+      - name: Fail job if the scan failed
+        if: steps.scan.outcome == 'failure'
+        run: exit 1
