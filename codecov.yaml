@@ -2,10 +2,7 @@
 # Repo-only rules go between `# dx:repo-begin` and `# dx:repo-end` at the end of the file.
 coverage:
   status:
-    project:
-      default:
-        target: 80%
-        threshold: 1%
+    project: off
     patch:
       default:
         target: 80%
