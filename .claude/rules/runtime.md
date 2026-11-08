@@ -28,6 +28,8 @@ from different repos read and search together. This is how they look here.
 - Field keys are `snake_case` in every language, so one query reads every service. The shared names
   are `team_id`, `device_id`, `request_id`, `trace_id`, `duration_ms`, and `error` for the error,
   never `e` or `err`.
+- Never log or trace a request or response body, a query value, or a parser message that quotes one;
+  a cross-zone path writes metadata only.
 
 ## Settings
 
