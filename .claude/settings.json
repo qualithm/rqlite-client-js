@@ -302,6 +302,7 @@
       "Bash(dx images sync *)",
       "Bash(dx git sync-commit)",
       "Bash(dx git sync-commit *)",
+      "Bash(python3 .claude/checks/ci-jobs.py *)",
       "Bash(bun run lint)",
       "Bash(bun run format)",
       "Bash(bun run typecheck)",
@@ -316,7 +317,10 @@
       "Bash(bun run wrangler:types)",
       "Bash(bun run tokens)",
       "Bash(npx vitest run *)",
-      "Bash(deno run -A npm:vitest run *)"
+      "Bash(deno run -A npm:vitest run *)",
+      "Bash(bun run cdn:assets)",
+      "Bash(bun run test:shared)",
+      "Bash(./dx config check)"
     ],
     "ask": [
       "Bash(git push *--force)",
