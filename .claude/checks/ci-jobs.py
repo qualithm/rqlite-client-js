@@ -12,7 +12,9 @@ with `uses:` and steps named "Install ..." are skipped, so their tools must
 already be installed. A step using a GitHub expression can only run in CI: it
 stops the run, unless --skip-ci-only skips it instead (for jobs whose
 expression steps only report, like a Codecov upload). What a step writes to
-$GITHUB_ENV or $GITHUB_PATH reaches the job's later steps. As in Actions, a
+$GITHUB_ENV or $GITHUB_PATH reaches the job's later steps. $GITHUB_OUTPUT and
+$GITHUB_STEP_SUMMARY are scratch files, so a step that records an output or a
+summary runs as in CI, and $GITHUB_WORKSPACE is the checkout. As in Actions, a
 failed step skips the rest of its job; every selected job runs, and the exit
 status is 1 when any failed.
 """
@@ -155,13 +157,17 @@ def main():
         print(f"ci-jobs: no chart changed since {args.base}; skipping chart steps", file=sys.stderr)
 
     failed = []
+    workspace = os.getcwd()
     runner_temp = tempfile.mkdtemp(prefix="ci-jobs-")
     for name in args.jobs:
         if name not in jobs:
             sys.exit(f"ci-jobs: {WORKFLOW} has no job {name}")
         github_env = os.path.join(runner_temp, f"{name}.env")
         github_path = os.path.join(runner_temp, f"{name}.path")
-        for file in (github_env, github_path):
+        # Steps write these too, but nothing local reads them back.
+        github_output = os.path.join(runner_temp, f"{name}.output")
+        github_summary = os.path.join(runner_temp, f"{name}.summary")
+        for file in (github_env, github_path, github_output, github_summary):
             open(file, "w", encoding="utf-8").close()
         for step in jobs[name].get("steps") or []:
             run = step.get("run")
@@ -194,13 +200,26 @@ def main():
             print(f"==> {label}", flush=True)
             exported = read_env_file(github_env)
             paths = read_lines(github_path)
-            base = {**os.environ, "RUNNER_TEMP": runner_temp, **inherited, **exported, **env}
+            base = {
+                **os.environ,
+                "RUNNER_TEMP": runner_temp,
+                "GITHUB_WORKSPACE": workspace,
+                **inherited,
+                **exported,
+                **env,
+            }
             if paths:
                 base["PATH"] = os.pathsep.join([*reversed(paths), base.get("PATH", "")])
             result = subprocess.run(
                 ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", command],
                 cwd=step.get("working-directory", "."),
-                env={**base, "GITHUB_ENV": github_env, "GITHUB_PATH": github_path},
+                env={
+                    **base,
+                    "GITHUB_ENV": github_env,
+                    "GITHUB_PATH": github_path,
+                    "GITHUB_OUTPUT": github_output,
+                    "GITHUB_STEP_SUMMARY": github_summary,
+                },
             )
             if result.returncode != 0:
                 failed.append(label)
