@@ -161,8 +161,10 @@ jobs:
             kind="swift"
             version=$(tr -d '[:space:]' < VERSION)
             prefix=""
-          elif [[ -f version.txt && -f CMakeLists.txt ]] && grep -q 'tools/cmake/project.cmake' CMakeLists.txt; then
+          elif [[ -f version.txt ]] && { [[ -f boards/firmware.cmake ]] || { [[ -f CMakeLists.txt ]] && grep -q 'tools/cmake/project.cmake' CMakeLists.txt; }; }; then
             # An ESP-IDF firmware image: IDF reads version.txt into PROJECT_VER.
+            # A MicroPython firmware has no root CMakeLists.txt (MicroPython's
+            # ports/esp32 is the IDF project); its boards/firmware.cmake reads it.
             kind="esp-idf"
             version=$(tr -d '[:space:]' < version.txt)
             prefix=""
