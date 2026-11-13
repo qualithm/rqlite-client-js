@@ -1,4 +1,5 @@
 # Base block, the same in every repo
+.claude/worktrees/
 .DS_Store
 .env*
 .idea/
