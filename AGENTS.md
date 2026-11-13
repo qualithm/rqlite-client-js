@@ -12,4 +12,4 @@ A portable summary for agents that don't load `.claude/rules/`; those files are 
   once its PR merges.
 - **Code** — `.claude/rules/code.md`.
 - **Skills** — `.claude/skills/` holds review, security and content guidance; the workspace
-  `CLAUDE.md` one directory up holds the board workflow and Strategy.
+  `CLAUDE.md` one directory up holds the operating rules; product work loads the `strategy` skill.
