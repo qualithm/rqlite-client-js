@@ -14,6 +14,23 @@ SOURCE_REPO="${SOURCE_REPO:?}"
 LABELS="${LABELS:-security-audit}"
 LABELS="${LABELS//,/ }"
 
+# Remediation deadlines by severity, in days from filing (README.md states them).
+SEVERITY="${SEVERITY:-high}"
+case "$SEVERITY" in
+critical) due_days=7 ;;
+high) due_days=30 ;;
+medium) due_days=90 ;;
+low) due_days=180 ;;
+*)
+  echo "report-scan-failure: unknown severity: ${SEVERITY} (critical, high, medium or low)" >&2
+  exit 1
+  ;;
+esac
+# GNU date on the runners; BSD date where the tests run on a Mac.
+due="$(date -u -d "+${due_days} days" +%F 2>/dev/null || date -u -v+"${due_days}"d +%F)"
+header="**Severity:** ${SEVERITY} · **Due:** ${due}"
+LABELS="$LABELS severity:${SEVERITY}"
+
 existing="$(gh issue list --repo "$REPO" --state open --search "\"${TITLE}\"" \
   --json number,title --jq "[.[] | select(.title == \"${TITLE}\")][0].number // empty")"
 
@@ -51,6 +68,14 @@ report)
       # report whose value lives in the body (a table of findings) can't go stale, and stay
       # silent when nothing changed so a recurring finding doesn't accrue a comment per run.
       current="$(gh issue view "$existing" --repo "$REPO" --json body --jq .body)"
+      # Keep the severity line the issue was filed with, so its due date never moves.
+      first="$(printf '%s\n' "$current" | head -n 1 | tr -d '\r')"
+      if [[ "$first" == "**Severity:**"* ]]; then
+        header="$first"
+      fi
+      BODY="${header}
+
+${BODY}"
       if [[ "$(printf '%s' "$current" | tr -d '\r')" == "$(printf '%s' "$BODY" | tr -d '\r')" ]]; then
         echo "report-scan-failure: issue #${existing} already up to date"
       else
@@ -82,6 +107,9 @@ addressing the finding.
 - Source repo: https://github.com/${SOURCE_REPO}
 - Failing run: ${RUN_URL}"
     fi
+    body="${header}
+
+${body}"
     # REST rather than `gh issue create`: newer gh resolves repository.defaultBranchRef over
     # GraphQL first, which needs contents:read — a permission the issue-filing app token
     # doesn't hold — so every new issue failed with "Resource not accessible by integration".
