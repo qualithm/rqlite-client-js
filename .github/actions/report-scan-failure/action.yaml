@@ -31,6 +31,13 @@ inputs:
       keep the plain bump-with-a-comment behaviour and the generic scan-failure body."
     required: false
     default: ""
+  severity:
+    description: >
+      critical, high, medium or low (default: high). mode=report files the issue with a
+      `severity:<level>` label and a first body line giving the severity and the due date the
+      remediation deadlines in the README set. A refreshed body keeps the date it was filed with.
+    required: false
+    default: "high"
   run-url:
     description: "URL of the workflow run to link from the issue (mode: report)."
     required: false
@@ -51,4 +58,5 @@ runs:
         LABELS: ${{ inputs.label }}
         BODY: ${{ inputs.body }}
         RUN_URL: ${{ inputs.run-url }}
+        SEVERITY: ${{ inputs.severity }}
       run: ${{ github.action_path }}/run.sh
