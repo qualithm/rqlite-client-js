@@ -73,7 +73,9 @@
     "typecheck": "tsc -p tsconfig.node.json --noEmit",
     "validate:runtime": "bun run scripts/validate-runtime.ts"
   },
-  "dependencies": {},
+  "dependencies": {
+    "lodash": "4.17.20"
+  },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/bun": "1.3.14",
