@@ -1,3 +1,8 @@
+# Base block, the same in every Bun repo; dx baseline sync rewrites it
+# up to the first blank line. Repo-only [install] keys go after that line, before any other table.
+[install]
+minimumReleaseAge = 259200
+
 [test]
 preload = ["./src/__tests__/setup.ts"]
 coverage = false
