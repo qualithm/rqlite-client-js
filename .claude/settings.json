@@ -27,7 +27,8 @@
     },
     "network": {
       "allowLocalBinding": true
-    }
+    },
+    "enableWeakerNetworkIsolation": true
   },
   "permissions": {
     "allow": [
