@@ -8,6 +8,27 @@
     "commit": "Co-Authored-By: Claude <noreply@anthropic.com>",
     "pr": ""
   },
+  "sandbox": {
+    "enabled": true,
+    "allowUnsandboxedCommands": true,
+    "filesystem": {
+      "allowWrite": [
+        "~/qualithm",
+        "~/.cache",
+        "~/Library/Caches",
+        "~/.cargo",
+        "~/go",
+        "~/.gradle",
+        "~/.npm",
+        "~/.bun",
+        "/tmp",
+        "/private/tmp"
+      ]
+    },
+    "network": {
+      "allowLocalBinding": true
+    }
+  },
   "permissions": {
     "allow": [
       "Bash(git status)",
