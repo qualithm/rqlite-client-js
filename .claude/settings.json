@@ -390,6 +390,18 @@
     ]
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|mcp__terminal__run_in_terminal",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "input=$(cat); dx=\"$HOME/.local/bin/dx\"; [ -x \"$dx\" ] || exit 0; cmd=${input#*'\"command\":'}; cmd=${cmd%%'\",\"'*}; case $cmd in *\"\\$'\"*) ;; *) case $(printf '%s' \"$cmd\" | tr -d \"\\\\\\\\\\\"'\") in *infisical*|*tofu*|*terragrunt*|*make*|*doctl*|*aws*|*'cd '*) ;; *) exit 0 ;; esac ;; esac; printf '%s' \"$input\" | \"$dx\" guard || true; exit 0",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [
