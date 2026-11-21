@@ -34,11 +34,14 @@ function describeError(error) {
 }
 
 var CITATION_EXEMPT = [
+  { repo: "cli", path: "src/__tests__/unit/coverage.test.ts" },
   { repo: "dx", path: "src/__tests__/unit/chat.test.ts" },
   { repo: "dx", path: "src/__tests__/unit/decision.test.ts" },
   { repo: "dx", path: "src/__tests__/unit/decisionCitations.test.ts" },
+  { repo: "dx", path: "src/__tests__/unit/gitFeature.test.ts" },
   { repo: "dx", path: "src/__tests__/unit/project.test.ts" },
   { repo: "dx", path: "src/__tests__/unit/triage.test.ts" },
+  { repo: "eyrie", path: "src/__tests__/unit/billing.test.tsx" },
   { repo: "gantry", path: "src/__tests__/unit/dashboardView.test.tsx" },
   { repo: "mill", path: "src/__tests__/unit/answer.test.ts" },
   { repo: "mill", path: "src/__tests__/unit/githubContext.test.ts" },
@@ -91,7 +94,7 @@ function addedCitations(repo, diff, decisions = new Set) {
   }
   return citations;
 }
-async function scanAddedCitations(repo, dir, base) {
+async function scanAddedCitations(repo, dir, base, decisions = new Set) {
   const mergeBase = await exec(["git", "merge-base", `origin/${base}`, "HEAD"], { cwd: dir });
   if (mergeBase.exitCode !== 0) {
     throw new DxError("error", `no merge base with origin/${base}: ${mergeBase.stderr.trim()}`);
@@ -100,7 +103,7 @@ async function scanAddedCitations(repo, dir, base) {
   if (diff.exitCode !== 0) {
     throw new DxError("error", `git diff failed: ${diff.stderr.trim()}`);
   }
-  return addedCitations(repo, diff.stdout);
+  return addedCitations(repo, diff.stdout, decisions);
 }
 
 var API_URL = "https://api.github.com";
