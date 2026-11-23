@@ -1,6 +1,6 @@
 {
   "model": "claude-opus-5-5",
-  "effortLevel": "high",
+  "effortLevel": "medium",
   "ultracode": false,
   "env": {
     "QUALITHM_PROJECT": "3"
