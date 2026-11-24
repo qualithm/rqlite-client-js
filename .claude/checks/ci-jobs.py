@@ -16,7 +16,8 @@ $GITHUB_ENV or $GITHUB_PATH reaches the job's later steps. $GITHUB_OUTPUT and
 $GITHUB_STEP_SUMMARY are scratch files, so a step that records an output or a
 summary runs as in CI, and $GITHUB_WORKSPACE is the checkout. As in Actions, a
 failed step skips the rest of its job; every selected job runs, and the exit
-status is 1 when any failed.
+status is 1 when any failed. A step marked `continue-on-error: true` never fails
+the run, since CI ignores its failure; --skip-ci-only skips it.
 """
 
 import argparse
@@ -194,6 +195,10 @@ def main():
                     print(f"--- {label}: skipped (runs only in CI)", file=sys.stderr)
                     continue
                 sys.exit(f"ci-jobs: {label}: uses a GitHub expression, so it runs only in CI")
+            optional = step.get("continue-on-error") in (True, "true")
+            if optional and args.skip_ci_only:
+                print(f"--- {label}: skipped (CI ignores its failure)", file=sys.stderr)
+                continue
             command = scoped(run, charts)
             if command is None:
                 continue
@@ -221,7 +226,9 @@ def main():
                     "GITHUB_STEP_SUMMARY": github_summary,
                 },
             )
-            if result.returncode != 0:
+            if result.returncode != 0 and optional:
+                print(f"--- {label}: failed, which CI ignores", file=sys.stderr)
+            elif result.returncode != 0:
                 failed.append(label)
                 print(f"--- {name}: skipping its remaining steps", file=sys.stderr)
                 break
