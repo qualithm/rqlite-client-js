@@ -182,8 +182,11 @@ function createGitHubClient(options) {
         await sleep(backoff(attempt));
         continue;
       }
-      const code = wait === undefined ? codeForStatus(response.status) : "rate_limited";
-      throw new DxError(code, `${method} ${url}: ${String(response.status)} ${await errorText(response)}`);
+      if (wait !== undefined) {
+        const until = new Date(now() + wait).toISOString();
+        throw new DxError("rate_limited", `${method} ${url}: rate limited until ${until}`);
+      }
+      throw new DxError(codeForStatus(response.status), `${method} ${url}: ${String(response.status)} ${await errorText(response)}`);
     }
   };
   const url = (path) => path.startsWith("http") ? path : `${baseUrl}/${path.replace(/^\//, "")}`;
@@ -319,7 +322,7 @@ function titleProblem(title) {
   }
   return;
 }
-var KEYWORD_REF = /(close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)[:\s]+([A-Za-z0-9._/-]+#[0-9]+|#[0-9]+)/gi;
+var KEYWORD_REF = /\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)[:\s]+([A-Za-z0-9._/-]+#[0-9]+|#[0-9]+)/gi;
 var CLOSING_KEYWORD = /^(close|fix|resolve)/i;
 function classifyRefs(texts) {
   const kinds = new Map;
