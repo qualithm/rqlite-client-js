@@ -343,6 +343,7 @@
       "Bash(dx ops list *)",
       "Bash(dx ops run *)",
       "Bash(python3 .claude/checks/ci-jobs.py *)",
+      "Bash(bash .claude/checks/images.sh)",
       "Bash(bun run lint)",
       "Bash(bun run format)",
       "Bash(bun run typecheck)",
