@@ -1,5 +1,7 @@
 // @bun
 // Generated from dx src/actions/refreshPr.ts by `bun run build:refresh-pr`. Do not edit.
+import { join } from "path";
+
 async function exec(argv, options = {}) {
   const child = Bun.spawn([...argv], {
     cwd: options.cwd,
@@ -55,7 +57,7 @@ function isCitationExempt(repo, path) {
 var NAMED = /\bDecisions?\b[^.\n]{0,40}#\d+/i;
 var BARE = /\bDecisions? +\d+\b/i;
 var DISCUSSION_URL = /github\.com\/qualithm\/pm\/discussions\/\d+/;
-var PM_REF = /\b(?:qualithm\/)?pm#(\d+)\b/g;
+var PM_REF = /(?<![\w./-])(?:qualithm\/)?pm#(\d+)\b/g;
 var CHAR_REF = /&#(?:\d+|x[0-9a-f]+);/gi;
 function citesDecision(raw, decisions) {
   const line = raw.replace(CHAR_REF, " ");
@@ -71,20 +73,32 @@ function citesDecision(raw, decisions) {
 }
 function addedCitations(repo, diff, decisions = new Set) {
   const citations = [];
+  let state = "none";
   let path = null;
   let line = 0;
   for (const raw of diff.split(`
 `)) {
-    if (raw.startsWith("+++ ")) {
-      path = raw === "+++ /dev/null" ? null : raw.slice(4).replace(/^b\//, "");
+    if (raw.startsWith("diff --git ")) {
+      state = "header";
+      path = null;
       continue;
     }
-    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
+    if (state === "header" && raw.startsWith("--- ")) {
+      state = "minus";
+      continue;
+    }
+    if (state === "minus" && raw.startsWith("+++ ")) {
+      path = raw === "+++ /dev/null" ? null : raw.slice(4).replace(/^b\//, "");
+      state = "header";
+      continue;
+    }
+    const hunk = state === "none" ? null : /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
     if (hunk !== null) {
       line = Number(hunk[1]);
+      state = "hunk";
       continue;
     }
-    if (raw.startsWith("+") && path !== null) {
+    if (state === "hunk" && raw.startsWith("+") && path !== null) {
       const text = raw.slice(1);
       if (!isCitationExempt(repo, path) && citesDecision(text, decisions)) {
         citations.push({ repo, path, line, text: text.trim() });
@@ -104,6 +118,23 @@ async function scanAddedCitations(repo, dir, base, decisions = new Set) {
     throw new DxError("error", `git diff failed: ${diff.stderr.trim()}`);
   }
   return addedCitations(repo, diff.stdout, decisions);
+}
+var VENDORED_DECISIONS = ".github/actions/refresh-pr/decisions.json";
+async function readDecisionList(path) {
+  const file = Bun.file(path);
+  if (!await file.exists()) {
+    return { ok: false, reason: "missing" };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    parsed = undefined;
+  }
+  if (!Array.isArray(parsed) || !parsed.every((value) => typeof value === "number" && Number.isInteger(value) && value > 0)) {
+    throw new DxError("config", `${path}: not a list of Decision numbers`);
+  }
+  return { ok: true, decisions: new Set(parsed) };
 }
 
 var API_URL = "https://api.github.com";
@@ -634,6 +665,28 @@ async function checkPrTitle(options) {
   };
 }
 
+async function client(env) {
+  const baseUrl = env.GITHUB_API_URL;
+  return createGitHubClient({
+    token: await resolveToken(env),
+    ...baseUrl === undefined || baseUrl === "" ? {} : { baseUrl }
+  });
+}
+async function vendoredDecisions(dir) {
+  let reason;
+  try {
+    const list = await readDecisionList(join(dir, VENDORED_DECISIONS));
+    if (list.ok) {
+      return list.decisions;
+    }
+    reason = "is missing";
+  } catch (error) {
+    reason = `is unreadable (${describeError(error).message})`;
+  }
+  process.stdout.write(`::warning::${VENDORED_DECISIONS} ${reason}, so a bare pm#N is not checked; run dx pr sync
+`);
+  return new Set;
+}
 async function checkCitations(base, repo, env) {
   if (base === "" || repo === "") {
     process.stderr.write(`usage: refresh-pr.js --check-citations <base-branch> (GITHUB_REPOSITORY set)
@@ -641,7 +694,8 @@ async function checkCitations(base, repo, env) {
     return 2;
   }
   const name = repo.split("/").at(-1) ?? repo;
-  const citations = await scanAddedCitations(name, env.GITHUB_WORKSPACE ?? process.cwd(), base);
+  const dir = env.GITHUB_WORKSPACE ?? process.cwd();
+  const citations = await scanAddedCitations(name, dir, base, await vendoredDecisions(dir));
   for (const c of citations) {
     process.stdout.write(`::error file=${c.path},line=${String(c.line)}::cites a Decision; state the rule in words or point at code
 `);
@@ -660,8 +714,7 @@ async function run(argv, env) {
 `);
       return 2;
     }
-    const client = createGitHubClient({ token: await resolveToken(env) });
-    const check = await checkPrTitle({ repo, pr: Number(number), client });
+    const check = await checkPrTitle({ repo, pr: Number(number), client: await client(env) });
     process.stdout.write(`${check.message}
 `);
     return check.ok ? 0 : 1;
@@ -676,17 +729,22 @@ async function run(argv, env) {
 `);
     return 2;
   }
-  const client = createGitHubClient({ token: await resolveToken(env) });
-  const result = await refreshPr({
-    dir: env.GITHUB_WORKSPACE ?? process.cwd(),
-    repo,
-    base,
-    pr: Number(pr),
-    client
-  });
-  process.stdout.write(`${result.message}
+  try {
+    const result = await refreshPr({
+      dir: env.GITHUB_WORKSPACE ?? process.cwd(),
+      repo,
+      base,
+      pr: Number(pr),
+      client: await client(env)
+    });
+    process.stdout.write(`${result.message}
 `);
-  return 0;
+    return 0;
+  } catch (error) {
+    process.stdout.write(`::warning::refresh-pr: ${describeError(error).message}
+`);
+    return 1;
+  }
 }
 run(process.argv.slice(2), process.env).then((code) => process.exit(code), (error) => {
   process.stderr.write(`refresh-pr: ${describeError(error).message}

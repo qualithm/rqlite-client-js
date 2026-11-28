@@ -68,10 +68,13 @@ jobs:
           bun-version: "1.4.4"
 
       # A retitle only re-checks; the CI app's pushes keep the title it wrote.
+      # A failed refresh (an emptied branch, a GitHub outage) only warns: the
+      # title check below is the job's one verdict.
       - name: Refresh the PR title/body
         if:
           steps.vendored.outputs.present == 'true' && github.event.action != 'edited' &&
           github.actor != 'qualithm-ci[bot]'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BASE_REF: ${{ github.base_ref }}
