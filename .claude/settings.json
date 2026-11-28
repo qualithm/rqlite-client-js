@@ -395,6 +395,13 @@
       "Bash(dx release sync *)",
       "Bash(dx tag sync)",
       "Bash(dx tag sync *)"
+    ],
+    "deny": [
+      "Edit(/.claude/settings.json)",
+      "Edit(/.claude/checks.json)",
+      "Edit(/.claude/hooks/**)",
+      "Edit(/.claude/skills/**)",
+      "Edit(~/.claude/settings.json)"
     ]
   },
   "hooks": {
